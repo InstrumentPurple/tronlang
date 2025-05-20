@@ -8,7 +8,7 @@
 #include <math.h>
 
 
-#include "./hakkerbase/tree.h"
+#include "./tree.h"
 
 typedef struct ajgraph {
     int **graph;
