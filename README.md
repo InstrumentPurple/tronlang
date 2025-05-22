@@ -1,7 +1,11 @@
 # tronlang
 Tronlang interpreter written in Golang and C
+
 CURRENTLY EXPERIMENTAL
+
 initial created to facilitate access to datastructures. Includes a general tree call the world tree because it's gobal. Hash tables are supported through short tables (which has limited capacity.). A global graph is implemented as a digraph and can find shortest paths with the Belman-ford algorithm
+
+May in fact leak memory somewhere. Have fun building up memory. tron.exe should be FAT
 
 simply go build tron.go
 
