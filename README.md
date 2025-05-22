@@ -11,6 +11,8 @@ project uses https://github.com/semitrivial/csv_parser/tree/master for csv parsi
 
 arguments are CSV
 
+set rootbeer variable j to 0
+
 !setMath:"j","0.0"
 
 
@@ -25,7 +27,7 @@ boolean expressions are also reversion polish notation
 
 !setBoole:"now","1 0 and"
 
-set rootbeer variable j to 0
+
 
 
 we are now ready to call the test function and watch it count
