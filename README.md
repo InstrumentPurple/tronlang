@@ -45,3 +45,7 @@ def a:
 end a function definition
 
 enddef
+
+do a source loop
+
+!addEdge:(src ./edges.csv)
