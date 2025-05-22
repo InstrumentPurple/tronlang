@@ -33,7 +33,28 @@ package main
  */
 // #cgo CFLAGS: -O2 -w
 import "C"
-//April 30, 2025
+//Copyright InstrumentPurple(Github) April 30, 2025
+/* Permission is hereby granted, free of charge,
+ *  to any person obtaining a copy of this software
+ *  and associated documentation files (the "Software"),
+ *  to deal in the Software without restriction, including
+ *  without limitation the rights to use, copy, modify,
+ *  merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the
+ *  Software is furnished to do so, subject
+ *  to the following conditions:
+ *
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *  OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ *  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+ *  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+
 import "fmt"
 import "regexp"
 import "os"
@@ -41,12 +62,15 @@ import "unsafe"
 import "strings"
 import "bufio"
 import "math"
+import "encoding/xml"
+import "io"
+import "encoding/csv"
 import(
 "math/big"
 "strconv"
 )
 
-var DEBUG bool = true
+var DEBUG bool = false
 
 type stackItem struct{
 	callerFnName string
@@ -73,6 +97,11 @@ type hashTbl struct{
 type kvargPair struct {
 	ks []string
 	es []string
+}
+
+type xmlData struct{
+	count int64
+	data []string
 }
 
 const(INFINITY=math.MaxFloat64)
@@ -142,7 +171,11 @@ func (g *Graph) printPath(dest string){
 
 	if okay{
 		g.printPath_(foundItem)
-		fmt.Println("cost:", foundItem.dist)
+		if foundItem.dist == INFINITY{
+			fmt.Println("cost:", "inf")
+		} else{
+			fmt.Println("cost:", foundItem.dist)
+		}
 	}
 
 	fmt.Println()
@@ -151,7 +184,6 @@ func (g *Graph) printPath(dest string){
 
 // a Go translation of Belman-Ford Algorithm for graph containing negative edge costs
 // from it's original C++ (Data Structures and Problem Solving Using C++ by Mark Allen Weiss)
-// currently broken
 func (g *Graph) negative(start string){
 	g.clearAll()
 	startV, su := g.vertexs[start]
@@ -213,9 +245,26 @@ func (g *Graph) negative(start string){
 }
 
 
+func (g *Graph) saveEdges(fpath string){
+	file, ferr := os.Create(fpath)
+	if ferr != nil {
+		return
+	}
+	wr := csv.NewWriter(file)
+
+	for _, vptr := range g.vertexs{
+		for _, edge := range vptr.adj{
+			wr.Write([]string{vptr.name, edge.dest.name, fmt.Sprintf("%f", edge.cost)})
+		}
+	}
+	wr.Flush()
+}
+
+
+
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.2 (public test)")
+const(VERSION="v0.3 Cobra style")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -233,8 +282,11 @@ var csvTbl map[string]csvEntity = map[string]csvEntity{}
 
 var observerTbl map[string]([]string) = map[string]([]string){} // func id to slice of strings (in strTbl)
 
-var definedFunctions map[string]([]string) = map[string]([]string){"test":[]string{"!mathSet:\"j\",\"j 1 +\"" ,"!setBoole:\"now\",\"j 10 gt\"","!ifstop:\"now\"","!showRb:","!test:"}}
+var definedFunctions map[string]([]string) = map[string]([]string){"test":[]string{"!setMath:\"j\",\"j 1 +\"" ,"!setBoole:\"now\",\"j 10 gt\"","!ifstop:\"now\"","!showRb:","!test:"}}
 var definedFunKvargs map[string]kvargPair = map[string]kvargPair{}
+
+
+var xmlTbl map[string](map[string]*xmlData) = map[string](map[string]*xmlData){}
 
 func reCompile(s string) *regexp.Regexp{
 	rc,_ := regexp.Compile(s)
@@ -249,6 +301,7 @@ var re map[string]*regexp.Regexp = map[string]*regexp.Regexp{
 	"remFunTrail":reCompile(":(| )$"),
 	"defFunc":reCompile("(\t| |)*def "),
 	"sourceLoop":reCompile(".*\\(src .*\\)"),
+	"allWhitespace":reCompile("^( |\t|\n|\r|\r\n)*$"),
 }
 
 
@@ -610,6 +663,15 @@ func parseAndCall(content string, useless int64) bool{
 	//remove whitespace from entity
 	content = re["begWhiteSpace"].ReplaceAllString(content, "")
 	content = re["trailWhiteSpace"].ReplaceAllString(content, "")
+	if strings.Contains(content, "\"") && content[len(content)-1] != "\""[0] {
+		fmt.Print("Did you intend on placing a Quote at the end of your line? (Y/n) ")
+		sc.Scan()
+		if sc.Text() == "Y"{
+			content = content + "\""
+		} else {
+			fmt.Println("verry well then")
+		}
+	}
 
 	if re["validCall"].MatchString(content){
 		got:=strings.Replace( content, ":","[seperator]", 1) //needs to be unique
@@ -622,7 +684,7 @@ func parseAndCall(content string, useless int64) bool{
 			if re["sourceLoop"].MatchString(argPart){
 				path := strings.Trim(argPart, "(src ")
 				path = strings.Trim(path, ")")
-				fmt.Println(path)
+
 				file,_ := os.Open(path)
 				defer file.Close()
 
@@ -769,7 +831,12 @@ func emit(args []string){
 	}
 	//todo: add rootBeers
 	for _,strId := range observerTbl[fn]{
-		strTbl[strId] = value
+		_,ins := strTbl[strId]
+		if !ins{
+			fmt.Println("error cannot create string by emitting")
+		} else {
+			strTbl[strId] = value
+		}
 	}
 }
 
@@ -801,8 +868,18 @@ func newString(args []string){
 }
 
 func connect(args []string){
-	funcId, strId := args[0], args[1]
+	var funcId, strId string
+	if len(args) < 2{
+		fmt.Print("function = ")
+		sc.Scan()
+		funcId = sc.Text()
 
+		fmt.Print("string name = ")
+		sc.Scan()
+		strId = sc.Text()
+	} else {
+		funcId, strId = args[0], args[1]
+	}
 	_,okay := observerTbl[funcId]
 	if !okay{
 		observerTbl[funcId] = []string{strId}
@@ -819,9 +896,28 @@ func showStrings(useless []string){
 
 func getVar(args []string){
 	if len(args)==1{
-		fmt.Println(strTbl[args[0]])
-		fmt.Println(rootBeer[args[0]])
-		fmt.Println(boole[args[0]])
+		gs,ins := strTbl[args[0]]
+		grb,inrb := rootBeer[args[0]]
+		gb,inb := boole[args[0]]
+
+		if ins{
+			fmt.Println(gs)
+			emit([]string{"getVar", gs})
+		}
+
+		if inrb{
+			fmt.Println(grb)
+			emit([]string{"getVar", fmt.Sprintf("%f",grb)})
+		}
+
+		if inb{
+			fmt.Println(gb)
+			emit([]string{"getVar", fmt.Sprintf("%f",gb)})
+		}
+
+		if !ins && !inrb && !inb {
+			fmt.Println("name error")
+		}
 	}
 }
 
@@ -844,7 +940,21 @@ func math_(args []string){
 }
 
 func newRootBeer(args []string){
-	rootBeer[args[0]],_ = strconv.ParseFloat(args[1],64)
+
+	var name, val string
+	if len(args) < 2{
+		fmt.Print("name = ")
+		sc.Scan()
+		name = sc.Text()
+
+		fmt.Print("value = ")
+		sc.Scan()
+		val = sc.Text()
+	} else {
+		name,val = args[0],args[1]
+	}
+
+	rootBeer[name],_ = strconv.ParseFloat(val,64)
 }
 
 func mathSet(args []string){
@@ -982,9 +1092,37 @@ func addEdge_(args []string){
 }
 
 func shortestPath(args []string){
-	src := args[0]
-	worldGraph.negative(src)
-	worldGraph.printPath(args[1])
+	var src,dest string
+	if len(args) < 2{
+		fmt.Print("source vertex = ")
+		sc.Scan()
+		src = sc.Text()
+
+		fmt.Print("dest vertex = ")
+		sc.Scan()
+		dest = sc.Text()
+	} else {
+		src,dest = args[0],args[1]
+	}
+
+	if src != "" && dest != ""{
+		if DEBUG{
+			fmt.Println("graph calling both")
+		}
+		worldGraph.negative(src)
+		worldGraph.printPath(dest)
+	} else if(src == ""){
+		if DEBUG{
+			fmt.Println("graph printpath with nil src")
+		}
+		worldGraph.printPath(dest)
+	} else if(dest == ""){
+		if DEBUG{
+			fmt.Println("graph negative with nil dest")
+		}
+		worldGraph.negative(src)
+
+	}
 }
 
 func getName(subj string)string{
@@ -994,14 +1132,6 @@ func getName(subj string)string{
 	return unwrap(sep[0])
 }
 
-
-func debug(args []string){
-	parseAndCall("!addEdge:\"a\",\"b\",\"1.0\"",0)
-	parseAndCall("!addEdge:\"b\",\"c\",\"2.0\"",1)
-	parseAndCall("!addEdge:\"a\",\"c\",\"1.0\"",2)
-	parseAndCall("!shortestPath:\"a\",\"c\"",3)
-
-}
 
 func push(args []string){
 	var name string
@@ -1033,9 +1163,229 @@ func stackGetFloat64(i string)float64{
 }
 
 func flip(args []string){
-	//if len(args) <
-	boole[args[0]] = !boole[args[0]]
+	if len(args) < 1 {
+		fmt.Println("You should know to give me a Boole")
+	} else {
+		boole[args[0]] = !boole[args[0]]
+	}
 }
+
+//copied from "The Go Programming Language" - Donovan and Kernighan
+// may in fact leak
+func xmlWt(args []string){
+
+	if len(args) < 1{
+		fmt.Print("filepath = ")
+		sc.Scan()
+		args = append(args,sc.Text())
+	}
+
+	file, ferr := os.Open(args[0])
+	defer file.Close()
+	if ferr != nil{
+		fmt.Println("problem with file", args[0])
+		return
+	}
+
+	dec := xml.NewDecoder(file)
+	pathStack := []string{}
+
+	for {
+		tok,err := dec.Token()
+		if err == io.EOF{
+			break;
+		} else if(err != nil){
+			return
+		}
+
+		switch token_ := tok.(type){
+			case xml.StartElement:
+				if DEBUG{
+					fmt.Println("saw start tag")
+				}
+
+				pathStack = append(pathStack, token_.Name.Local)
+
+				for _, attr := range token_.Attr {
+					attribpath := pathStack
+					attribpath = append(attribpath, attr.Name.Space+":"+attr.Name.Local)
+					path := strings.Join(attribpath, "/")
+					path = "/" + path + "/attrib"
+
+					data := unsafe.Pointer(C.CString(string(attr.Value)))
+					strpath := C.CString(path)
+					if C.tree_find_str(&worldTree, strpath) == nil { // no duplicates
+
+						C.tree_make_path_str(&worldTree, strpath)
+						C.tree_insert_str(&worldTree, strpath, data)
+					} else {
+						fmt.Println("loosing attribute. A Tree might not be a suitable structure for this data.")
+						C.free(data)
+					}
+					C.free(unsafe.Pointer(strpath))
+					fmt.Printf("  Attribute: %s=\"%s\"\n", attr.Name.Local, attr.Value)
+				}
+			case xml.EndElement:
+				if DEBUG{
+					fmt.Println("saw end tag")
+				}
+				pathStack = pathStack[:len(pathStack)-1]  // pop
+			case xml.CharData:
+				if re["allWhitespace"].MatchString(string(token_)){
+					continue;
+				}
+				//form unix path
+				path := strings.Join(pathStack, "/")
+				path = "/" + path + "/data"
+				fmt.Println(path,":",string(token_))
+				data := unsafe.Pointer(C.CString(string(token_)))
+				strpath := C.CString(path)
+
+				if C.tree_find_str(&worldTree, strpath) == nil { // don't allow duplicates
+					C.tree_make_path_str(&worldTree, strpath)
+					C.tree_insert_str(&worldTree, strpath, data)
+				}else {
+					fmt.Println("loosing data. A Tree might not be a suitable structure for this data.")
+					C.free(data)
+				}
+
+				C.free(unsafe.Pointer(strpath))
+		}
+
+	}
+}
+
+// copy of loadWt... todo? one routine to rule them all?
+func loadXML(args []string){
+	var name, fpath string
+	if len(args) < 2 {
+		fmt.Print("name = ")
+		sc.Scan()
+		name = sc.Text()
+
+		fmt.Print("fpath = ")
+		sc.Scan()
+		fpath = sc.Text()
+	} else {
+		name, fpath = args[0], args[1]
+	}
+
+	xmlTbl[name] = map[string]*xmlData{}
+
+
+
+	file, ferr := os.Open(fpath)
+	defer file.Close()
+	if ferr != nil{
+		fmt.Println("problem with file", fpath)
+		return
+	}
+
+	dec := xml.NewDecoder(file)
+	pathStack := []string{}
+
+	for {
+		tok,err := dec.Token()
+		if err == io.EOF{
+			break;
+		} else if(err != nil){
+			return
+		}
+
+		switch token_ := tok.(type){
+			case xml.StartElement:
+				if DEBUG{
+					fmt.Println("saw start tag")
+				}
+
+				pathStack = append(pathStack, token_.Name.Local)
+
+				for _, attr := range token_.Attr {
+					attribpath := pathStack
+					attribpath = append(attribpath, attr.Name.Space+":"+attr.Name.Local)
+					path := strings.Join(attribpath, "/")
+					path = "/" + path + "/attrib"
+
+					_,tbltest := xmlTbl[name][path]
+
+					if tbltest {
+						xmlTbl[name][path].data = append(xmlTbl[name][path].data, attr.Value)
+						xmlTbl[name][path].count++
+					} else {
+						xmlTbl[name][path] = &xmlData{count:1, data: []string{attr.Value}}
+					}
+					fmt.Printf("  Attribute: %s=\"%s\"\n", attr.Name.Local, attr.Value)
+				}
+			case xml.EndElement:
+				if DEBUG{
+					fmt.Println("saw end tag")
+				}
+				pathStack = pathStack[:len(pathStack)-1]  // pop
+			case xml.CharData:
+				if re["allWhitespace"].MatchString(string(token_)){
+					continue;
+				}
+				//form unix path
+				path := strings.Join(pathStack, "/")
+				path = "/" + path + "/data"
+				fmt.Println(path,":",string(token_))
+
+				_,tbltest := xmlTbl[name][path]
+
+				if tbltest {
+					xmlTbl[name][path].data = append(xmlTbl[name][path].data, string(token_))
+					xmlTbl[name][path].count++
+				} else {
+					xmlTbl[name][path] = &xmlData{count:1, data: []string{string(token_)}}
+				}
+		}
+	}
+}
+
+
+func showXmlTbl(args []string){
+	var name string
+	if len(args) < 1 {
+		fmt.Print("name = ")
+		sc.Scan()
+		name = sc.Text()
+	} else {
+		name = args[0]
+	}
+
+	for k,val := range xmlTbl[name]{
+		fmt.Println(k, ":", val.data)
+		fmt.Println("freq:", val.count)
+	}
+}
+
+func nuke(args []string){
+	strTbl = map[string]string{}
+	rootBeer = map[string]float64{}
+	xmlTbl = map[string](map[string]*xmlData){}
+	observerTbl = map[string]([]string){}
+	//crashes
+	//C.tree_destruct(&worldTree)
+	worldTree = nil
+	worldGraph = Graph{vertexs: map[string]*gVertex{}}
+	boole = map[string]bool{}
+	definedFunctions = map[string]([]string){}
+	definedFunKvargs = map[string]kvargPair{}
+}
+
+
+func saveWorldGraph(args []string){
+	var fpath string
+	if len(args) < 1{
+		fmt.Print("filepath = ")
+		sc.Scan()
+		fpath = sc.Text()
+	} else {
+		fpath = args[0]
+	}
+	worldGraph.saveEdges(fpath)
+}
+
 
 func main(){
 	fmt.Println("Tronlang " + VERSION)
@@ -1063,7 +1413,7 @@ func main(){
 	builtIns["emit"] = emit
 	builtIns["disconnect"] = disconnect
 	builtIns["math"] = math_
-	builtIns["mathSet"] = mathSet
+	builtIns["setMath"] = mathSet
 	builtIns["newRootBeer"] = newRootBeer
 	builtIns["newRb"] = newRootBeer
 	builtIns["showRb"] = showRb
@@ -1072,9 +1422,13 @@ func main(){
 	builtIns["showBoole"] = showBoole
 	builtIns["addEdge"] = addEdge_
 	builtIns["shortestPath"] = shortestPath
-	builtIns["debug"] = debug
-	builtIns["call"] = call //the only way to call a user defined function from the commandline
+	builtIns["call"] = call //the only way to call a user defined function from the commandline interpeter
 	builtIns["flip"] = flip
+	builtIns["xmlWt"] = xmlWt
+	builtIns["showXML"] = showXmlTbl
+	builtIns["loadXML"] = loadXML // a much better way
+	builtIns["nuke"] = nuke
+	builtIns["saveWorldGraph"] = saveWorldGraph
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
@@ -1099,7 +1453,6 @@ func main(){
 				if sc.Text() == "enddef"{
 					break;
 				} else {
-
 					if sc.Text() == "defkv"{
 						k := []string{}
 						exprs := []string{}
