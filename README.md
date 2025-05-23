@@ -13,6 +13,8 @@ If you need a C compiler that works with windows you can install gcc provided by
 
 project uses https://github.com/semitrivial/csv_parser/tree/master for csv parsing
 
+check out tron.go for a list of the built in's in main
+
 arguments are CSV
 
 set rootbeer variable j to 0
