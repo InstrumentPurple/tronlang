@@ -264,7 +264,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.3 Cobra style")
+const(VERSION="v0.4 some essentials")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -278,7 +278,7 @@ var rootBeer map[string]float64 = map[string]float64{
 	"pi":3.1415926535897932384626433832795028841971693993751058,
 }
 var boole map[string]bool = map[string]bool{}
-var csvTbl map[string]csvEntity = map[string]csvEntity{}
+var csvTbl map[string]*csvEntity = map[string]*csvEntity{}
 
 var observerTbl map[string]([]string) = map[string]([]string){} // func id to slice of strings (in strTbl)
 
@@ -601,14 +601,14 @@ func run(blank []string){
 
 				fnname := getName(line)
 				args := getArgs(line)
-				if fnname != "math" && fnname != "mathSet"{ // handled in RPN
+				if fnname != "ifcall" && fnname != "setBoole" && fnname != "math" && fnname != "mathSet"{ // handled in RPN
 					for i, arg := range args{
 
 						if strings.Contains(arg, "args:") && !strings.Contains(arg, " "){
 							id := (strings.Split(arg, "args:"))[1]
 							id_,_ :=strconv.Atoi(id)
 							args[i] = callStack[len(callStack)-1].args[id_]
-							fmt.Println("args[i]", args[i])
+							//fmt.Println("args[i]", args[i])
 						}
 					}
 				}
@@ -776,6 +776,9 @@ func findWt(args []string){
 	got := C.tree_find_str(&worldTree, ctxt)
 	C.puts((*C.char)(got.data))
 
+
+	emit([]string{"findWt",C.GoString((*C.char)(got.data))})
+
 	C.free(unsafe.Pointer(ctxt))
 }
 
@@ -808,9 +811,7 @@ func findShort(args []string){
 		name,key=args[0],args[1]
 	}
 	got := shortTbls[name].Find(key)
-	for _,strId := range observerTbl["findShort"]{ //emit
-		strTbl[strId] = got
-	}
+	emit([]string{"findShort", got})
 
 	fmt.Println(got)
 }
@@ -1314,7 +1315,7 @@ func loadXML(args []string){
 					} else {
 						xmlTbl[name][path] = &xmlData{count:1, data: []string{attr.Value}}
 					}
-					fmt.Printf("  Attribute: %s=\"%s\"\n", attr.Name.Local, attr.Value)
+					fmt.Printf("  Attribute: %s=\"%s\"\t", attr.Name.Local, attr.Value)
 				}
 			case xml.EndElement:
 				if DEBUG{
@@ -1340,6 +1341,8 @@ func loadXML(args []string){
 				}
 		}
 	}
+
+	fmt.Println()
 }
 
 
@@ -1371,6 +1374,7 @@ func nuke(args []string){
 	boole = map[string]bool{}
 	definedFunctions = map[string]([]string){}
 	definedFunKvargs = map[string]kvargPair{}
+	csvTbl = map[string]*csvEntity{}
 }
 
 
@@ -1384,6 +1388,108 @@ func saveWorldGraph(args []string){
 		fpath = args[0]
 	}
 	worldGraph.saveEdges(fpath)
+}
+
+func ifcall(args []string){
+	var boolvar string
+
+	if len(args) < 2 {
+		fmt.Println("ifcall requires at least 2 arguments.")
+		return
+	} else {
+		boolvar = args[0]
+	}
+
+	result,_ := evalBooleExpr(boolvar)
+
+	if result{
+		call(args[1:])
+	}
+}
+
+func setString(args []string){
+	var lhs, rhs string
+	if len(args) < 2 {
+		fmt.Print("left hand side = ")
+		sc.Scan()
+		lhs = sc.Text()
+
+		fmt.Print("right hand side = ")
+		sc.Scan()
+		rhs = sc.Text()
+	} else {
+		lhs,rhs  = args[0],args[1]
+	}
+
+	strTbl[lhs] = rhs
+}
+
+
+func findSingleXML(args []string){
+
+	var tblName, path string
+
+	if len(args) < 2 {
+		fmt.Print("xml table name = ")
+		sc.Scan()
+		tblName = sc.Text()
+
+		fmt.Print("path =")
+		sc.Scan()
+		path = sc.Text()
+	} else {
+		tblName, path = args[0], args[1]
+	}
+
+	got, in := xmlTbl[tblName][path]
+
+	if !in{
+		fmt.Println("name error")
+		return
+	}
+
+	fmt.Println(got.data)
+}
+
+func containsEvery(content string, substrs []string)bool{
+	var all bool = true
+
+	for _, sub := range substrs{
+		all = all && strings.Contains(content, sub)
+	}
+
+	return all
+}
+
+func searchXML(args []string){
+	var tblname string
+	anders := make([]string,0)
+	if len(args) > 1{
+		tblname = args[0]
+		anders = args[1:]
+	} else if(len(args) < 2){
+		fmt.Println("xml table name =")
+		sc.Scan()
+		tblname = sc.Text()
+		fmt.Println("search term = ")
+		sc.Scan()
+		anders = append(anders, sc.Text())
+	}
+
+	for path, xml := range xmlTbl[tblname]{
+		d := xml.data
+		if containsEvery(path, anders){
+			fmt.Println("Found terms in path ", path)
+		}
+
+		for _, datum := range d{
+			if containsEvery(datum, anders){
+				fmt.Println(path)
+				fmt.Println("Found terms in data: ", datum)
+			}
+		}
+	}
+
 }
 
 
@@ -1429,6 +1535,10 @@ func main(){
 	builtIns["loadXML"] = loadXML // a much better way
 	builtIns["nuke"] = nuke
 	builtIns["saveWorldGraph"] = saveWorldGraph
+	builtIns["ifcall"] = ifcall
+	builtIns["setString"] = setString
+	builtIns["findXML"] = findSingleXML //idk waht to name this
+	builtIns["searchXML"] = searchXML
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
