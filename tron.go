@@ -247,6 +247,7 @@ func (g *Graph) negative(start string){
 
 func (g *Graph) saveEdges(fpath string){
 	file, ferr := os.Create(fpath)
+	defer file.Close()
 	if ferr != nil {
 		return
 	}
@@ -264,7 +265,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.4 some essentials")
+const(VERSION="v0.41")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
