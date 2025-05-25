@@ -76,7 +76,7 @@ type stackItem struct{
 	callerFnName string
 	stptr int64
 	args []string
-	kvargs map[string]string
+	ret string
 }
 
 
@@ -265,7 +265,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.41")
+const(VERSION="v0.42")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -619,11 +619,21 @@ func run(blank []string){
 						if DEBUG{
 						fmt.Println("poping stack from ifstop")
 						}
-						callStack = callStack[0:(len(callStack)-2)]
+						callStack = callStack[0:(len(callStack)-1)]
 						goto startLoop
 						//run([]string{})
 						return // idk
 					}
+				} else if(fnname == "return"){
+					if DEBUG{
+						fmt.Println("saw return and poping stack")
+					}
+
+					callStack = callStack[0:(len(callStack)-1)]
+					callStack[len(callStack)-1].ret = args[0]
+
+					goto startLoop
+
 				}
 
 				builtin, inblin := builtIns[fnname]
@@ -651,7 +661,7 @@ func run(blank []string){
 			}
 			//automatically return when the function is completed
 			if iptr >= int64(len(fnlist)) && len(callStack) > 1{
-				callStack = callStack[0:(len(callStack)-2)]
+				callStack = callStack[0:(len(callStack)-1)]
 				if DEBUG{
 				fmt.Println("pop stack reached")
 				}
@@ -1141,6 +1151,7 @@ func push(args []string){
 		fmt.Print("name = ")
 		sc.Scan()
 		name = sc.Text()
+		//I don't feel like inputing an array so you ONLY GET ONE
 	} else {
 		name = args[0]
 	}
@@ -1472,7 +1483,7 @@ func searchXML(args []string){
 		fmt.Println("xml table name =")
 		sc.Scan()
 		tblname = sc.Text()
-		fmt.Println("search term = ")
+		fmt.Println("search term = ") // only from the prompt. You can have more.
 		sc.Scan()
 		anders = append(anders, sc.Text())
 	}
@@ -1494,6 +1505,23 @@ func searchXML(args []string){
 }
 
 
+func storeRet(args []string){
+	var varName string
+	if len(args) < 1{
+		fmt.Print("string var = ")
+		sc.Scan()
+		varName = sc.Text()
+	} else {
+		varName = args[0]
+	}
+	if len(callStack) < 1 {
+		fmt.Println("null callstack")
+		return
+	}
+	strTbl[varName] = callStack[len(callStack)-1].ret
+}
+
+
 func main(){
 	fmt.Println("Tronlang " + VERSION)
 
@@ -1506,6 +1534,7 @@ func main(){
 	}
 
 	//functions := map[string]int64{}
+	// builtIns that are not here are ifstop and return
 	//initialize built in functions
 	builtIns["insertWt"] = insertWt
 	builtIns["showWt"] = showWt
@@ -1540,6 +1569,7 @@ func main(){
 	builtIns["setString"] = setString
 	builtIns["findXML"] = findSingleXML //idk waht to name this
 	builtIns["searchXML"] = searchXML
+	builtIns["storeRet"] = storeRet
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
