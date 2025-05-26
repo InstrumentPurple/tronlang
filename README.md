@@ -48,6 +48,18 @@ start a function definition
 
 def a:
 
+use arguments
+
+!mathSet:"k","args:0 1 +"
+
+return string
+
+!return:"a string"
+
+return value of variable
+
+!return:"deref:k"
+
 end a function definition
 
 enddef
