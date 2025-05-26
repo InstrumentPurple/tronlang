@@ -265,7 +265,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.42")
+const(VERSION="v0.43")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -614,6 +614,33 @@ func run(blank []string){
 					}
 				}
 
+				//how to specify variables not just text
+				for i, arg := range args{
+					if strings.Contains(arg,"deref:") && !strings.Contains(arg, " "){
+						varb := (strings.Split(arg, "deref:"))[1]
+
+
+						gs,ins := strTbl[varb]
+						grb,inrb := rootBeer[varb]
+						gb,inb := boole[varb]
+
+
+						if ins{
+							args[i] = gs
+						} else if inrb{
+							args[i] = fmt.Sprintf("%f",grb)
+						} else if inb{
+							args[i] = fmt.Sprintf("%f",gb)
+						}
+
+						if !ins && !inrb && !inb {
+							fmt.Println("name error")
+						}
+
+					}
+				}
+
+
 				if(fnname == "ifstop"){
 					if boole[args[0]]{
 						if DEBUG{
@@ -870,6 +897,7 @@ func insertShort(args []string){
 	} else if(len(args)>= 3){
 		name,key,data = args[0],args[1],args[2]
 	}
+
 	shortTbls[name].Insert(key, data)
 }
 
@@ -1514,10 +1542,14 @@ func storeRet(args []string){
 	} else {
 		varName = args[0]
 	}
-	if len(callStack) < 1 {
-		fmt.Println("null callstack")
-		return
+
+	if DEBUG{
+		if len(callStack) < 1 {
+			fmt.Println("null callstack")
+			return
+		}
 	}
+
 	strTbl[varName] = callStack[len(callStack)-1].ret
 }
 
