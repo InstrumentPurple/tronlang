@@ -65,6 +65,10 @@ end a function definition
 
 enddef
 
+get most previous return value
+
+!storeRet:"varhere"
+
 do a source loop
 
 !addEdge:(src ./edges.csv)
