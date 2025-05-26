@@ -33,9 +33,6 @@ boolean expressions are also reversion polish notation
 
 !setBoole:"now","1 0 and"
 
-
-
-
 we are now ready to call the test function and watch it count
 
 !call:"test"
@@ -43,6 +40,10 @@ we are now ready to call the test function and watch it count
 reset the interpreter's state
 
 !nuke:
+
+if statement is achieved with ifcall and function definitions
+
+!ifcall:"1 1 and","fn","some argument"
 
 start a function definition
 
