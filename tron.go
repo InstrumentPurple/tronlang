@@ -265,7 +265,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.43")
+const(VERSION="v0.44")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -602,6 +602,7 @@ func run(blank []string){
 
 				fnname := getName(line)
 				args := getArgs(line)
+				// this is not maintainable
 				if fnname != "ifcall" && fnname != "setBoole" && fnname != "math" && fnname != "mathSet"{ // handled in RPN
 					for i, arg := range args{
 
@@ -758,8 +759,16 @@ func parseAndCall(content string, useless int64) bool{
 			//C.free_csv_line(parsedArgDataC)
 			//C.free(unsafe.Pointer(csvDataC))
 			fn,insidebif := builtIns[name]
+			_,insideDeffn := definedFunctions[name]
 			if insidebif {
 				fn(args)
+			}else if insideDeffn{
+				callArgs := make([]string,0)
+				callArgs = append(callArgs, name)
+				for _,ar := range args{
+					callArgs = append(callArgs, ar)
+				}
+				call(callArgs)
 			}
 
 		}
@@ -1511,7 +1520,7 @@ func searchXML(args []string){
 		fmt.Println("xml table name =")
 		sc.Scan()
 		tblname = sc.Text()
-		fmt.Println("search term = ") // only from the prompt. You can have more.
+		fmt.Println("search term = ") // only one from the prompt. You can have more.
 		sc.Scan()
 		anders = append(anders, sc.Text())
 	}
@@ -1576,7 +1585,7 @@ func main(){
 	builtIns["insertShort"] = insertShort
 	builtIns["newString"] = newString
 	builtIns["connect"] = connect
-	builtIns["getVar"] = getVar
+	builtIns["getVar"] = getVar // casts
 	builtIns["showStrings"] = showStrings
 	builtIns["emit"] = emit
 	builtIns["disconnect"] = disconnect
@@ -1590,7 +1599,7 @@ func main(){
 	builtIns["showBoole"] = showBoole
 	builtIns["addEdge"] = addEdge_
 	builtIns["shortestPath"] = shortestPath
-	builtIns["call"] = call //the only way to call a user defined function from the commandline interpeter
+	builtIns["call"] = call
 	builtIns["flip"] = flip
 	builtIns["xmlWt"] = xmlWt
 	builtIns["showXML"] = showXmlTbl
@@ -1626,18 +1635,18 @@ func main(){
 				if sc.Text() == "enddef"{
 					break;
 				} else {
-					if sc.Text() == "defkv"{
+					if sc.Text() == "defkv"{ // i don't know if this is even usefull
 						k := []string{}
 						exprs := []string{}
 						for {
-							fmt.Print("k=")
+							fmt.Print("key = ")
 							sc.Scan()
 							if sc.Text() == "endkv"{
 								definedFunKvargs[recentDefName] = kvargPair{ks:k, es:exprs}
 								break;
 							} else {
 								k=append(k, sc.Text())
-								fmt.Print("v=")
+								fmt.Print("rootbeer expression =")
 								sc.Scan()
 								exprs=append(exprs, sc.Text())
 							}
