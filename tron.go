@@ -265,7 +265,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.44")
+const(VERSION="v0.44.00001")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -603,7 +603,7 @@ func run(blank []string){
 				fnname := getName(line)
 				args := getArgs(line)
 				// this is not maintainable
-				if fnname != "ifcall" && fnname != "setBoole" && fnname != "math" && fnname != "mathSet"{ // handled in RPN
+				if fnname != "setBoole" && fnname != "math" && fnname != "mathSet"{ // handled in RPN
 					for i, arg := range args{
 
 						if strings.Contains(arg, "args:") && !strings.Contains(arg, " "){
