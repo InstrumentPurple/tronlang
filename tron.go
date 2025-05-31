@@ -265,7 +265,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.44.00001")
+const(VERSION="v0.45 (builtin filler)")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -586,7 +586,7 @@ func run(blank []string){
 		if iptr != 0 {
 			if (iptr > int64(len(fnlist))){
 				if DEBUG{
-				fmt.Println("wonder bread fix")
+				fmt.Println("wonder bread fix (should never happen)")
 				}
 				callStack = callStack[0:(len(callStack)-2)]
 				return //all finished
@@ -911,6 +911,12 @@ func insertShort(args []string){
 }
 
 func newString(args []string){
+	if len(args) == 0{
+		fmt.Print("string name = ")
+		sc.Scan()
+		args = append(args, sc.Text())
+	}
+
 	for _,val := range args{
 		strTbl[val]=""
 	}
@@ -1562,6 +1568,82 @@ func storeRet(args []string){
 	strTbl[varName] = callStack[len(callStack)-1].ret
 }
 
+func standardOut(args []string){
+	for _,arg := range args{
+		fmt.Print(arg + " ")
+	}
+
+	fmt.Println()
+}
+
+
+func reMatch(args []string){
+	var subj, rawRe string
+	if len(args) < 2{
+		fmt.Print("subject = ")
+		sc.Scan()
+		subj=sc.Text()
+		fmt.Print("regular expression =")
+		sc.Scan()
+		rawRe = sc.Text()
+	} else {
+		subj,rawRe = args[0], args[1]
+	}
+
+	reg := reCompile(rawRe)
+	if reg.MatchString(subj){
+		emit([]string{"reMatch", subj})
+	}
+}
+
+
+func setCat(args []string){
+	var subjName string
+	data := make([]string,0)
+
+	if len(args) < 2{
+		fmt.Print("string name = ")
+		sc.Scan()
+		subjName=sc.Text()
+		fmt.Print("data = ")
+		sc.Scan()
+		data = append(data, sc.Text())
+	} else {
+		subjName = args[0]
+		data = args[1:]
+	}
+	_,found := strTbl[subjName]
+
+	if !found{
+		fmt.Println("name error")
+	} else {
+		for _, datum := range data{
+			strTbl[subjName] += datum
+		}
+	}
+}
+
+func stringToRb(args []string){
+	var srcStrName, destRbName string
+	if len(args) < 2 {
+		fmt.Print("source string name = ")
+		sc.Scan()
+		srcStrName = sc.Text()
+		fmt.Print("destination rootbeer name = ")
+		sc.Scan()
+		destRbName = sc.Text()
+	} else {
+		srcStrName, destRbName = args[0],args[1]
+	}
+
+	converted, err := strconv.ParseFloat(strTbl[srcStrName], 64)
+	if err != nil{
+		fmt.Println(err)
+		return
+	}
+
+	rootBeer[destRbName] = converted
+}
 
 func main(){
 	fmt.Println("Tronlang " + VERSION)
@@ -1611,6 +1693,10 @@ func main(){
 	builtIns["findXML"] = findSingleXML //idk waht to name this
 	builtIns["searchXML"] = searchXML
 	builtIns["storeRet"] = storeRet
+	builtIns["stdout"] = standardOut
+	builtIns["reMatch"] = reMatch
+	builtIns["setCat"] = setCat
+	builtIns["stringToRb"] = stringToRb
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
