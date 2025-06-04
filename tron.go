@@ -265,7 +265,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.45 (builtin filler)")
+const(VERSION="v0.46 (StarWars sql you are the star)")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -290,7 +290,10 @@ var definedFunKvargs map[string]kvargPair = map[string]kvargPair{}
 var xmlTbl map[string](map[string]*xmlData) = map[string](map[string]*xmlData){}
 
 func reCompile(s string) *regexp.Regexp{
-	rc,_ := regexp.Compile(s)
+	rc,err := regexp.Compile(s)
+	if DEBUG && err != nil{
+		fmt.Println(err)
+	}
 	return rc
 }
 
@@ -305,6 +308,11 @@ var re map[string]*regexp.Regexp = map[string]*regexp.Regexp{
 	"allWhitespace":reCompile("^( |\t|\n|\r|\r\n)*$"),
 }
 
+
+var sqlRe map[string]*regexp.Regexp = map[string]*regexp.Regexp{
+	"startsSELECT": reCompile("(?i)^SELECT"),
+
+}
 
 
 var ONE *big.Int = big.NewInt(1)
@@ -1199,6 +1207,16 @@ func push(args []string){
 		name = args[0]
 	}
 
+	//finally makes call work on builtins
+	fn,inb := builtIns[name]
+	if inb && len(args) > 0{
+		fn(args[1:])
+		return
+	} else if(inb && len(args) == 0){
+		fn([]string{})
+		return
+	}
+
 	if len(args) < 2 {
 		callStack = append(callStack, stackItem{stptr:0, callerFnName:name})
 	} else {
@@ -1645,6 +1663,120 @@ func stringToRb(args []string){
 	rootBeer[destRbName] = converted
 }
 
+
+func loadCSVFile(args []string){
+	var fpath, tname, hasHeader string
+	if len(args) < 2{
+		fmt.Print("file path = ")
+		sc.Scan()
+		fpath = sc.Text()
+		fmt.Print("database name")
+		sc.Scan()
+		tname = sc.Text()
+		fmt.Print("has header (Boole) = ")
+		sc.Scan()
+		hasHeader = sc.Text()
+	} else {
+		fpath,tname,hasHeader = args[0],args[1],args[2]
+	}
+
+	var hasHead,_ = evalBooleExpr(hasHeader)
+
+	file, ferr := os.Open(fpath)
+	defer file.Close()
+	if ferr != nil {
+		fmt.Println(ferr)
+		return
+	}
+
+	csvr := csv.NewReader(file)
+	curData, csverr := csvr.ReadAll()
+
+	if csverr != nil {
+		fmt.Println(csverr)
+		return
+	}
+
+	csvTbl[tname] = &csvEntity{}
+	if hasHead{
+		csvTbl[tname].head = curData[0]
+		csvTbl[tname].hasHead = true
+		csvTbl[tname].data = curData[1:]
+	} else {
+		csvTbl[tname].data = curData
+		csvTbl[tname].hasHead = false
+	}
+}
+
+func csvsql(args []string){
+	var sqlstr string
+	if len(args) < 1 {
+		fmt.Print("sql string = ")
+		sc.Scan()
+		sqlstr = sc.Text()
+	} else {
+		sqlstr = args[0]
+	}
+
+	if sqlRe["startsSELECT"].MatchString(sqlstr){
+		//remove select from text kinda stupidly since no replace regexp in golang
+		sqlstr = strings.Trim(sqlstr, "select ")
+		sqlstr = strings.Trim(sqlstr, "SELECT ")
+
+		colPrep := strings.Split(sqlstr, " ")
+		if len(colPrep) > 0{
+			colId := colPrep[0]
+
+			if DEBUG {
+				fmt.Println("column id",colId)
+			}
+
+			sqlstr = strings.Trim(sqlstr, colId)
+			sqlstr = strings.Trim(sqlstr, " from ")
+			sqlstr = strings.Trim(sqlstr, " FROM ")
+
+			if !strings.Contains(sqlstr, "WHERE") && !strings.Contains(sqlstr, "where"){
+				databaseNamePrep := strings.Split(sqlstr,";")
+				databaseName := databaseNamePrep[0]
+				if DEBUG {
+					fmt.Println("database name", databaseName)
+				}
+				//assumes it has a head
+				colIdHead := csvTbl[databaseName].head
+				id := 0
+
+				if colId == "*"{
+					if DEBUG{
+						fmt.Println("* as feild")
+					}
+
+					for _, row := range csvTbl[databaseName].data{
+						fmt.Println(row)
+					}
+				} else {
+					//linear-time search the small number of colIds
+					for id_, name := range colIdHead{
+						if name == colId{
+							id = id_
+							break;
+						}
+					}
+					for _, row := range csvTbl[databaseName].data{
+						fmt.Println(row[id])
+					}
+				}
+			} else {
+				//handel where clause in the future
+			}
+		} else {
+			fmt.Println("incomplete select statement!")
+		}
+
+	}
+}
+
+
+
 func main(){
 	fmt.Println("Tronlang " + VERSION)
 
@@ -1697,6 +1829,8 @@ func main(){
 	builtIns["reMatch"] = reMatch
 	builtIns["setCat"] = setCat
 	builtIns["stringToRb"] = stringToRb
+	builtIns["loadCSVFile"] = loadCSVFile
+	builtIns["csvsql"] = csvsql
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
