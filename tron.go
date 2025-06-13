@@ -265,7 +265,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.46 (StarWars sql you are the star)")
+const(VERSION="v0.48")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -446,7 +446,7 @@ func hash(s string)big.Float{
 	}
 	//sum.Mul(sum, big.NewInt(15))
 	got,_,_ := big.ParseFloat(sum.String(), 10, 0, big.AwayFromZero)
-	pri := big.NewFloat(152623.0*60)
+	pri := big.NewFloat(6999989)
 	return mod(*got, *pri)
 }
 
@@ -596,7 +596,7 @@ func run(blank []string){
 				if DEBUG{
 				fmt.Println("wonder bread fix (should never happen)")
 				}
-				callStack = callStack[0:(len(callStack)-2)]
+				callStack = callStack[0:(len(callStack)-1)]
 				return //all finished
 			}
 			if DEBUG{
@@ -848,7 +848,7 @@ func newShort(args []string){
 		name=args[0]
 	}
 	shortTbls[name] = &hashTbl{}
-	shortTbls[name].Init(152623*60)
+	shortTbls[name].Init(6999989)
 }
 
 
@@ -865,10 +865,17 @@ func findShort(args []string){
 	} else if(len(args) >= 2){
 		name,key=args[0],args[1]
 	}
-	got := shortTbls[name].Find(key)
+
+	tbl,intbl := shortTbls[name]
+	if intbl{
+	got := tbl.Find(key)
 	emit([]string{"findShort", got})
 
 	fmt.Println(got)
+	} else {
+		fmt.Println("name error")
+	}
+
 }
 
 
@@ -1448,6 +1455,7 @@ func nuke(args []string){
 	definedFunctions = map[string]([]string){}
 	definedFunKvargs = map[string]kvargPair{}
 	csvTbl = map[string]*csvEntity{}
+	shortTbls = map[string]*hashTbl{}
 }
 
 
@@ -1670,7 +1678,7 @@ func loadCSVFile(args []string){
 		fmt.Print("file path = ")
 		sc.Scan()
 		fpath = sc.Text()
-		fmt.Print("database name")
+		fmt.Print("database name = ")
 		sc.Scan()
 		tname = sc.Text()
 		fmt.Print("has header (Boole) = ")
@@ -1717,7 +1725,7 @@ func csvsql(args []string){
 	} else {
 		sqlstr = args[0]
 	}
-
+	// construction zone
 	if sqlRe["startsSELECT"].MatchString(sqlstr){
 		//remove select from text kinda stupidly since no replace regexp in golang
 		sqlstr = strings.Trim(sqlstr, "select ")
@@ -1734,6 +1742,7 @@ func csvsql(args []string){
 			sqlstr = strings.Trim(sqlstr, colId)
 			sqlstr = strings.Trim(sqlstr, " from ")
 			sqlstr = strings.Trim(sqlstr, " FROM ")
+
 
 			if !strings.Contains(sqlstr, "WHERE") && !strings.Contains(sqlstr, "where"){
 				databaseNamePrep := strings.Split(sqlstr,";")
@@ -1765,8 +1774,20 @@ func csvsql(args []string){
 						fmt.Println(row[id])
 					}
 				}
-			} else {
-				//handel where clause in the future
+			} else { // handle where clause
+				var databaseName string
+				var cond string
+				if strings.Contains(sqlstr, "WHERE"){
+					prepare := strings.Split(sqlstr, " WHERE ")
+					cond = strings.Join(prepare[1:], "")
+					databaseName = prepare[0]
+				} else if strings.Contains(sqlstr, "where"){
+					prepare := strings.Split(sqlstr, " where ")
+					cond = strings.Join(prepare[1:], "")
+					databaseName = prepare[0]
+				}
+				databaseName += cond
+
 			}
 		} else {
 			fmt.Println("incomplete select statement!")
@@ -1775,6 +1796,168 @@ func csvsql(args []string){
 	}
 }
 
+
+
+
+
+func binSearch(records *[][]string, first, last int64, value string, col int64)int64{
+	index := int64(0)
+
+	if first > last {
+		index = -1
+	} else {
+		mid := (first + last)/2
+		if value == (*records)[mid][col]{
+			index = mid
+		} else if(value < (*records)[mid][col]){
+			index = binSearch(records,first,mid-1,value, col)
+		} else {
+			index = binSearch(records,mid+1,last,value, col)
+		}
+	}
+
+	return index;
+}
+
+
+func mergeSort_(a,tmp *[][]string, left, right int64, col int64){
+	if left < right{
+		center := (left+right)/int64(2)
+		mergeSort_(a,tmp,left,center, col)
+		mergeSort_(a,tmp,center+1,right,col)
+		merge(a,tmp,left, center+1, right,col)
+	}
+}
+
+
+func merge(a, tmp *[][]string, leftPos,rightPos,rightEnd int64, col int64){
+	if a == nil || tmp == nil{
+		return
+	}
+	leftEnd := rightPos - 1
+	tmpPos := leftPos
+	numElements := rightEnd - leftPos + 1
+
+	for leftPos <= leftEnd && rightPos <= rightEnd{
+		if (*a)[leftPos][col] <= (*a)[rightPos][col]{
+			(*tmp)[tmpPos] = (*a)[leftPos]
+			tmpPos++
+			leftPos++
+		} else {
+			(*tmp)[tmpPos] = (*a)[rightPos]
+			tmpPos++
+			rightPos++
+		}
+	}
+
+
+	for leftPos <= leftEnd{
+		(*tmp)[tmpPos] = (*a)[leftPos]
+		tmpPos++
+		leftPos++
+	}
+
+
+	for rightPos <= rightEnd {
+		(*tmp)[tmpPos] = (*a)[rightPos]
+		tmpPos++
+		rightPos++
+	}
+
+	for i:=int64(0);i < numElements; i++{
+		(*a)[rightEnd] = (*tmp)[rightEnd]
+		rightEnd--
+	}
+}
+
+
+func mergeSort(records *[][]string, col int64){
+	tmpArray := make([][]string, len(*records), len(*records))
+	mergeSort_(records,&tmpArray,0,int64(len(*records)-1), col)
+}
+
+func sortByCol(args []string){
+	var tblName, columnId string
+	if len(args) < 2{
+		fmt.Print("csv table name = ")
+		sc.Scan()
+		tblName = sc.Text()
+		fmt.Print("column name or int = ")
+		sc.Scan()
+		columnId = sc.Text()
+	} else {
+		tblName, columnId = args[0], args[1]
+	}
+
+	col,_ := strconv.Atoi(columnId)
+	mergeSort(&(csvTbl[tblName].data), int64(col))
+	fmt.Println("finished sort")
+}
+
+func bins(args []string){
+	csvName := args[0]
+	val := args[1]
+	col,_ := strconv.Atoi(args[2])
+
+	tbl, inerr := csvTbl[csvName]
+	if inerr{
+		got := binSearch(&(tbl.data), 0, int64(len(tbl.data)), val, int64(col))
+		fmt.Print("index = ", got, "\n")
+		fmt.Println(tbl.data[got])
+	} else {
+		fmt.Println("name error")
+	}
+}
+
+func showHeadCSV(args []string){
+	var tblName string
+	if len(args) < 1 {
+		fmt.Print("csv table name = ")
+		sc.Scan()
+		tblName = sc.Text()
+	} else {
+		tblName = args[0]
+	}
+
+	got, in := csvTbl[tblName]
+	if !in{
+		fmt.Println("name error")
+	} else {
+		if got.hasHead{
+			fmt.Println(got.head)
+		} else {
+			fmt.Println("no such header")
+		}
+	}
+}
+
+
+func findAllExactCSV(args []string){
+	var tblName, term string
+	if len(args) < 2 {
+		fmt.Print("CSV table name = ")
+		sc.Scan()
+		tblName = sc.Text()
+		fmt.Print("term = ")
+		sc.Scan()
+		term = sc.Text()
+	} else {
+		tblName, term = args[0],args[1]
+	}
+
+	table, in := csvTbl[tblName]
+	if !in{
+		fmt.Println("name error")
+	} else {
+		for _,row := range (*table).data{
+			for _, item := range row{
+				if item == term{
+					fmt.Println(row)
+				}
+			}
+		}
+	}
+}
 
 
 func main(){
@@ -1831,6 +2014,10 @@ func main(){
 	builtIns["stringToRb"] = stringToRb
 	builtIns["loadCSVFile"] = loadCSVFile
 	builtIns["csvsql"] = csvsql
+	builtIns["sortByColCSV"] = sortByCol
+	builtIns["bins"] = bins //assumes the column is already sorted
+	builtIns["showHeadCSV"] = showHeadCSV
+	builtIns["findAllExactCSV"] = findAllExactCSV
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
