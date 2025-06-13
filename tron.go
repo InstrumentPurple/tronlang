@@ -1903,7 +1903,9 @@ func bins(args []string){
 	if inerr{
 		got := binSearch(&(tbl.data), 0, int64(len(tbl.data)), val, int64(col))
 		fmt.Print("index = ", got, "\n")
-		fmt.Println(tbl.data[got])
+		if got != -1{
+			fmt.Println(tbl.data[got])
+		}
 	} else {
 		fmt.Println("name error")
 	}
