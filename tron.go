@@ -65,6 +65,7 @@ import "math"
 import "encoding/xml"
 import "io"
 import "encoding/csv"
+import "encoding/json"
 import(
 "math/big"
 "strconv"
@@ -117,6 +118,8 @@ type gVertex struct {
 	dist float64
 	prev *gVertex
 	scratch int
+	aux map[string]string
+	//transform func (map[string]string)
 }
 
 type Graph struct {
@@ -145,7 +148,7 @@ func (g *Graph) clearAll(){
 func (g *Graph) getVertex(name string) *gVertex {
 	got, inset := g.vertexs[name]
 	if !inset {
-		newvert := &gVertex{name:name} // listen here. this is malloc
+		newvert := &gVertex{name:name,aux:map[string]string{}}
 		g.vertexs[name] = newvert
 		return newvert
 
@@ -265,7 +268,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.48")
+const(VERSION="v0.49")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -567,7 +570,7 @@ func run(blank []string){
 		if DEBUG{
 			fmt.Println("top of stack for ", topItem.callerFnName)
 		}
-		//todo this is stupid. Put it in scope
+
 		kv,hasKv := definedFunKvargs[topItem.callerFnName]
 		if hasKv{
 			if DEBUG{
@@ -666,7 +669,7 @@ func run(blank []string){
 					}
 
 					callStack = callStack[0:(len(callStack)-1)]
-					callStack[len(callStack)-1].ret = args[0]
+					callStack[len(callStack)-1].ret = args[0] // we are only returning one thing here
 
 					goto startLoop
 
@@ -1155,7 +1158,7 @@ func showBoole(args []string){
 func addEdge_(args []string){
 	var src,dest string
 	src,dest = args[0], args[1]
-	c := args[2]
+	c := args[2] // cost
 	nc,_ := strconv.ParseFloat(c, 64)
 
 	worldGraph.addEdge(src, dest, nc)
@@ -1469,6 +1472,19 @@ func saveWorldGraph(args []string){
 		fpath = args[0]
 	}
 	worldGraph.saveEdges(fpath)
+
+	auxFile, err := os.Create(fpath + ".aux.json")
+	defer auxFile.Close()
+
+	if err != nil{
+		fmt.Println(err)
+		return
+	}
+
+	for _, value := range worldGraph.vertexs{
+		 entity, _ := json.Marshal(value.aux)
+		 auxFile.Write([]byte(string(entity) + "\n"))
+	}
 }
 
 func ifcall(args []string){
@@ -1540,6 +1556,59 @@ func containsEvery(content string, substrs []string)bool{
 	}
 
 	return all
+}
+
+
+func substrGR(strch chan bundleXMLt, abort chan struct{},pathCh chan string, substrs []string){
+	for {
+		select {
+			case s := <-strch:
+				for _, datum := range s.data{
+
+					if containsEvery(datum, substrs){
+						fmt.Println(s.path)
+						fmt.Println("Found terms in data: ", datum)
+					}
+				}
+			case p := <-pathCh:
+				if containsEvery(p, substrs){
+					fmt.Println("Found terms in path ", p)
+				}
+			case <-abort:
+				return
+		}
+	}
+}
+
+type bundleXMLt struct{
+	path string
+	data []string
+}
+
+func searchXMLt(args []string){
+	var tblname string
+	anders := make([]string,0)
+	if len(args) > 1{
+		tblname = args[0]
+		anders = args[1:]
+	} else if(len(args) < 2){
+		fmt.Println("xml table name =")
+		sc.Scan()
+		tblname = sc.Text()
+		fmt.Println("search term = ") // only one from the prompt. You can have more.
+		sc.Scan()
+		anders = append(anders, sc.Text())
+	}
+
+	dataCh := make(chan bundleXMLt)
+	abortCh := make(chan struct{})
+	pathCh := make(chan string)
+	go substrGR(dataCh, abortCh,pathCh,anders)
+	for path, xml := range xmlTbl[tblname]{
+		pathCh <- path
+		dataCh <- bundleXMLt{data: xml.data, path: path}
+	}
+	abortCh <- struct{}{} // clean up the goroutine. hopefully it happens before the next print
 }
 
 func searchXML(args []string){
@@ -1716,6 +1785,16 @@ func loadCSVFile(args []string){
 	}
 }
 
+func linsearch(subj string, possib []string)int{
+	var id_ int=0
+	for id,name := range possib{
+		if name == subj{
+			id_=id
+		}
+	}
+	return id_
+}
+
 func csvsql(args []string){
 	var sqlstr string
 	if len(args) < 1 {
@@ -1727,31 +1806,24 @@ func csvsql(args []string){
 	}
 	// construction zone
 	if sqlRe["startsSELECT"].MatchString(sqlstr){
-		//remove select from text kinda stupidly since no replace regexp in golang
-		sqlstr = strings.Trim(sqlstr, "select ")
-		sqlstr = strings.Trim(sqlstr, "SELECT ")
-
-		colPrep := strings.Split(sqlstr, " ")
-		if len(colPrep) > 0{
-			colId := colPrep[0]
-
-			if DEBUG {
-				fmt.Println("column id",colId)
-			}
-
-			sqlstr = strings.Trim(sqlstr, colId)
-			sqlstr = strings.Trim(sqlstr, " from ")
-			sqlstr = strings.Trim(sqlstr, " FROM ")
-
-
+		colId := "*" // must extract from sqlstr
 			if !strings.Contains(sqlstr, "WHERE") && !strings.Contains(sqlstr, "where"){
+				fmt.Println("in if")
 				databaseNamePrep := strings.Split(sqlstr,";")
 				databaseName := databaseNamePrep[0]
+				morePrep := strings.Split(databaseName, " from ")
+				databaseName=morePrep[0]
+				databaseName=strings.Replace(databaseName, "select ","", 1)
 				if DEBUG {
 					fmt.Println("database name", databaseName)
 				}
 				//assumes it has a head
-				colIdHead := csvTbl[databaseName].head
+
+				csvtmp,in := csvTbl[databaseName]
+				colIdHead := make([]string,0)
+				if in{
+					colIdHead = csvtmp.head
+				}
 				id := 0
 
 				if colId == "*"{
@@ -1764,12 +1836,7 @@ func csvsql(args []string){
 					}
 				} else {
 					//linear-time search the small number of colIds
-					for id_, name := range colIdHead{
-						if name == colId{
-							id = id_
-							break;
-						}
-					}
+					id = linsearch(colId,colIdHead)
 					for _, row := range csvTbl[databaseName].data{
 						fmt.Println(row[id])
 					}
@@ -1786,12 +1853,9 @@ func csvsql(args []string){
 					cond = strings.Join(prepare[1:], "")
 					databaseName = prepare[0]
 				}
-				databaseName += cond
-
+				databaseName += cond // shut up the compiler
+				fmt.Println(databaseName, cond)
 			}
-		} else {
-			fmt.Println("incomplete select statement!")
-		}
 
 	}
 }
@@ -1882,7 +1946,7 @@ func sortByCol(args []string){
 		fmt.Print("csv table name = ")
 		sc.Scan()
 		tblName = sc.Text()
-		fmt.Print("column name or int = ")
+		fmt.Print("column number = ")
 		sc.Scan()
 		columnId = sc.Text()
 	} else {
@@ -1895,9 +1959,24 @@ func sortByCol(args []string){
 }
 
 func bins(args []string){
-	csvName := args[0]
-	val := args[1]
-	col,_ := strconv.Atoi(args[2])
+	var csvName,val string
+	var colTmp string
+	if len(args) < 3{
+		fmt.Print("csv table name = ")
+		sc.Scan()
+		csvName = sc.Text()
+		fmt.Print("search target = ")
+		sc.Scan()
+		val = sc.Text()
+		fmt.Print("column number = ")
+		sc.Scan()
+		colTmp = sc.Text()
+	}else {
+		csvName,val,colTmp = args[0],args[1],args[2]
+	}
+
+
+	col,_ := strconv.Atoi(colTmp)
 
 	tbl, inerr := csvTbl[csvName]
 	if inerr{
@@ -1962,6 +2041,50 @@ func findAllExactCSV(args []string){
 }
 
 
+func attachAux(args []string){
+	var vertName, key, value string
+	if len(args) < 3{
+		fmt.Print("vertex name = ")
+		sc.Scan()
+		vertName = sc.Text()
+		fmt.Print("key = ")
+		sc.Scan()
+		key = sc.Text()
+		fmt.Print("value = ")
+		sc.Scan()
+		value = sc.Text()
+
+	} else {
+		vertName, key, value = args[0],args[1],args[2]
+	}
+
+	got,has := worldGraph.vertexs[vertName]
+
+	if has{
+		got.aux[key] = value
+	} else {
+		fmt.Println("error: bad name")
+	}
+}
+
+func showAux(args []string){
+	var vertName string
+	if len(args) < 1{
+		fmt.Print("vertes name = ")
+		sc.Scan()
+		vertName = sc.Text()
+	} else {
+		vertName = args[0]
+	}
+
+	got,has := worldGraph.vertexs[vertName]
+	if has{
+		for key, value := range got.aux{
+			fmt.Print(key, "=", value, "\n")
+		}
+	}
+}
+
 func main(){
 	fmt.Println("Tronlang " + VERSION)
 
@@ -2020,6 +2143,10 @@ func main(){
 	builtIns["bins"] = bins //assumes the column is already sorted
 	builtIns["showHeadCSV"] = showHeadCSV
 	builtIns["findAllExactCSV"] = findAllExactCSV
+	builtIns["attachAux"] = attachAux
+	builtIns["searchXMLt"] = searchXMLt // i don't even know if this is faster. verrified cooler tho
+	builtIns["showAux"] = showAux
+
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
