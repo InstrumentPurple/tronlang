@@ -268,7 +268,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.49")
+const(VERSION="v0.50")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -1157,8 +1157,23 @@ func showBoole(args []string){
 
 func addEdge_(args []string){
 	var src,dest string
-	src,dest = args[0], args[1]
-	c := args[2] // cost
+
+	var c string
+	if len(args) < 3 {
+		fmt.Print("source vertex = ")
+		sc.Scan()
+		src = sc.Text()
+		fmt.Print("destination vertex = ")
+		sc.Scan()
+		dest = sc.Text()
+		fmt.Print("cost = ")
+		sc.Scan()
+		c =  sc.Text()
+	} else {
+		src,dest = args[0], args[1]
+		c = args[2] // cost
+	}
+
 	nc,_ := strconv.ParseFloat(c, 64)
 
 	worldGraph.addEdge(src, dest, nc)
@@ -1863,7 +1878,7 @@ func csvsql(args []string){
 
 
 
-
+//binary search written for golang from Frank Carrano's c++ book
 func binSearch(records *[][]string, first, last int64, value string, col int64)int64{
 	index := int64(0)
 
@@ -1883,7 +1898,7 @@ func binSearch(records *[][]string, first, last int64, value string, col int64)i
 	return index;
 }
 
-
+//merge sort written for golang from weiss's C++ book (mentioned earlier)
 func mergeSort_(a,tmp *[][]string, left, right int64, col int64){
 	if left < right{
 		center := (left+right)/int64(2)
