@@ -72,3 +72,7 @@ get most previous return value
 do a source loop
 
 !addEdge:(src ./edges.csv)
+
+add a function from disk
+
+!loadfn:
