@@ -66,6 +66,7 @@ import "encoding/xml"
 import "io"
 import "encoding/csv"
 import "encoding/json"
+import "runtime"
 import(
 "math/big"
 "strconv"
@@ -113,17 +114,18 @@ type gEdge struct {
 }
 
 type gVertex struct {
-	name string
+	Name string
 	adj []gEdge
 	dist float64
 	prev *gVertex
 	scratch int
-	aux map[string]string
-	//transform func (map[string]string)
+	Aux map[string]string
+	transform func (map[string]string)
 }
 
 type Graph struct {
 	vertexs map[string]*gVertex
+	startName string
 }
 
 type csvEntity struct {
@@ -145,10 +147,16 @@ func (g *Graph) clearAll(){
 	}
 }
 
+func displayAuxTrans(data map[string]string){
+	for key,value := range data{
+		fmt.Println(key,"=",value)
+	}
+}
+
 func (g *Graph) getVertex(name string) *gVertex {
 	got, inset := g.vertexs[name]
 	if !inset {
-		newvert := &gVertex{name:name,aux:map[string]string{}}
+		newvert := &gVertex{Name:name,Aux:map[string]string{}, transform: displayAuxTrans}
 		g.vertexs[name] = newvert
 		return newvert
 
@@ -166,7 +174,7 @@ func (g *Graph) printPath_(dest *gVertex){
 	if dest.prev != nil{
 		g.printPath_(dest.prev)
 	}
-	fmt.Print(dest.name + " ")
+	fmt.Print(dest.Name + " ")
 }
 
 func (g *Graph) printPath(dest string){
@@ -190,6 +198,7 @@ func (g *Graph) printPath(dest string){
 func (g *Graph) negative(start string){
 	g.clearAll()
 	startV, su := g.vertexs[start]
+	g.startName = start
 	if DEBUG{
 		fmt.Println("starting vertex",start)
 	}
@@ -235,7 +244,7 @@ func (g *Graph) negative(start string){
 					if w.scratch % 2 == 0 {
 						w.scratch++
 						if DEBUG{
-						fmt.Println("pushing w ", w.name)
+						fmt.Println("pushing w ", w.Name)
 						}
 						q = append(q, w)
 					} else {
@@ -258,7 +267,7 @@ func (g *Graph) saveEdges(fpath string){
 
 	for _, vptr := range g.vertexs{
 		for _, edge := range vptr.adj{
-			wr.Write([]string{vptr.name, edge.dest.name, fmt.Sprintf("%f", edge.cost)})
+			wr.Write([]string{vptr.Name, edge.dest.Name, fmt.Sprintf("%f", edge.cost)})
 		}
 	}
 	wr.Flush()
@@ -268,7 +277,7 @@ func (g *Graph) saveEdges(fpath string){
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
 
-const(VERSION="v0.50")
+const(VERSION="v0.6")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
@@ -303,7 +312,7 @@ func reCompile(s string) *regexp.Regexp{
 var re map[string]*regexp.Regexp = map[string]*regexp.Regexp{
 	"begWhiteSpace": reCompile("^( |\t|\r|\n|\r\n)*"),
 	"trailWhiteSpace":reCompile("( |\t|\r|\n|\r\n)*$"),
-	"validCall":reCompile("![a-zA-Z]*:"),
+	"validCall":reCompile("![a-zA-Z0-9]*:"),
 	"remFunBeg":reCompile("^!"),
 	"remFunTrail":reCompile(":(| )$"),
 	"defFunc":reCompile("(\t| |)*def "),
@@ -317,14 +326,18 @@ var sqlRe map[string]*regexp.Regexp = map[string]*regexp.Regexp{
 
 }
 
+var transformationFns = map[string](func (map[string]string)){
+	"print": displayAuxTrans,
+	/* the idea here is the implement your own transformation functions and add them here */
+}
 
 var ONE *big.Int = big.NewInt(1)
 var ZERO *big.Int = big.NewInt(0)
 
 
+
 //factorial
 func fact_cancel(at, n *big.Int)*big.Int{
-
 	result := big.NewInt(1.0)
 
 	for n.Cmp(at) != 0 {
@@ -561,6 +574,38 @@ func getArgs(content string)[]string{
 	return args
 }
 
+func parseDeref(args *[]string){
+	//how to specify variables not just text
+	for i, arg := range (*args){
+		if strings.Contains(arg,"deref:") && !strings.Contains(arg, " "){
+			varb := (strings.Split(arg, "deref:"))[1]
+
+
+			gs,ins := strTbl[varb]
+			grb,inrb := rootBeer[varb]
+			gb,inb := boole[varb]
+
+
+			if ins{
+				(*args)[i] = gs
+			} else if inrb{
+				(*args)[i] = fmt.Sprintf("%f",grb)
+			} else if inb{
+				(*args)[i] = fmt.Sprintf("%f",gb)
+			}
+
+			if !ins && !inrb && !inb {
+				fmt.Println("name error")
+			}
+
+		}
+	}
+
+}
+
+
+
+
 // the callstack take 2
 func run(blank []string){
 	startLoop:
@@ -626,32 +671,7 @@ func run(blank []string){
 					}
 				}
 
-				//how to specify variables not just text
-				for i, arg := range args{
-					if strings.Contains(arg,"deref:") && !strings.Contains(arg, " "){
-						varb := (strings.Split(arg, "deref:"))[1]
-
-
-						gs,ins := strTbl[varb]
-						grb,inrb := rootBeer[varb]
-						gb,inb := boole[varb]
-
-
-						if ins{
-							args[i] = gs
-						} else if inrb{
-							args[i] = fmt.Sprintf("%f",grb)
-						} else if inb{
-							args[i] = fmt.Sprintf("%f",gb)
-						}
-
-						if !ins && !inrb && !inb {
-							fmt.Println("name error")
-						}
-
-					}
-				}
-
+				parseDeref(&args)
 
 				if(fnname == "ifstop"){
 					if boole[args[0]]{
@@ -711,8 +731,9 @@ func run(blank []string){
 
 func parseAndCall(content string, useless int64) bool{
 	//remove whitespace from entity
+	//TODO: it doesn't do that
 	content = re["begWhiteSpace"].ReplaceAllString(content, "")
-	content = re["trailWhiteSpace"].ReplaceAllString(content, "")
+
 	if strings.Contains(content, "\"") && content[len(content)-1] != "\""[0] {
 		fmt.Print("Did you intend on placing a Quote at the end of your line? (Y/n) ")
 		sc.Scan()
@@ -764,6 +785,8 @@ func parseAndCall(content string, useless int64) bool{
 			} else {
 				 args = []string{}
 			}
+
+			parseDeref(&args)
 
 			name := unwrap(callPart)
 
@@ -1474,6 +1497,8 @@ func nuke(args []string){
 	definedFunKvargs = map[string]kvargPair{}
 	csvTbl = map[string]*csvEntity{}
 	shortTbls = map[string]*hashTbl{}
+
+	runtime.GC()
 }
 
 
@@ -1496,10 +1521,14 @@ func saveWorldGraph(args []string){
 		return
 	}
 
-	for _, value := range worldGraph.vertexs{
-		 entity, _ := json.Marshal(value.aux)
-		 auxFile.Write([]byte(string(entity) + "\n"))
-	}
+	//for _, value := range worldGraph.vertexs{
+	//	 entity, _ := json.Marshal(value.aux)
+	//	 auxFile.Write([]byte(string(entity) + "\n"))
+	//}
+
+	// TODO: proccess file and unmarshal features. For now just save it for perhaps your own programs.
+	entity, _ := json.Marshal(worldGraph.vertexs)
+	auxFile.Write(entity)
 }
 
 func ifcall(args []string){
@@ -1579,7 +1608,6 @@ func substrGR(strch chan bundleXMLt, abort chan struct{},pathCh chan string, sub
 		select {
 			case s := <-strch:
 				for _, datum := range s.data{
-
 					if containsEvery(datum, substrs){
 						fmt.Println(s.path)
 						fmt.Println("Found terms in data: ", datum)
@@ -1618,11 +1646,14 @@ func searchXMLt(args []string){
 	dataCh := make(chan bundleXMLt)
 	abortCh := make(chan struct{})
 	pathCh := make(chan string)
+
 	go substrGR(dataCh, abortCh,pathCh,anders)
+
 	for path, xml := range xmlTbl[tblname]{
 		pathCh <- path
 		dataCh <- bundleXMLt{data: xml.data, path: path}
 	}
+
 	abortCh <- struct{}{} // clean up the goroutine. hopefully it happens before the next print
 }
 
@@ -1810,6 +1841,8 @@ func linsearch(subj string, possib []string)int{
 	return id_
 }
 
+
+// [construction zone]
 func csvsql(args []string){
 	var sqlstr string
 	if len(args) < 1 {
@@ -1819,11 +1852,14 @@ func csvsql(args []string){
 	} else {
 		sqlstr = args[0]
 	}
-	// construction zone
+
 	if sqlRe["startsSELECT"].MatchString(sqlstr){
 		colId := "*" // must extract from sqlstr
 			if !strings.Contains(sqlstr, "WHERE") && !strings.Contains(sqlstr, "where"){
-				fmt.Println("in if")
+
+				if DEBUG {
+					fmt.Println("in if")
+				}
 				databaseNamePrep := strings.Split(sqlstr,";")
 				databaseName := databaseNamePrep[0]
 				morePrep := strings.Split(databaseName, " from ")
@@ -1875,7 +1911,7 @@ func csvsql(args []string){
 	}
 }
 
-
+// [end construction zone]
 
 
 //binary search written for golang from Frank Carrano's c++ book
@@ -2022,7 +2058,7 @@ func showHeadCSV(args []string){
 		if got.hasHead{
 			fmt.Println(got.head)
 		} else {
-			fmt.Println("no such header")
+			fmt.Println("this csv does not have a header")
 		}
 	}
 }
@@ -2076,7 +2112,7 @@ func attachAux(args []string){
 	got,has := worldGraph.vertexs[vertName]
 
 	if has{
-		got.aux[key] = value
+		got.Aux[key] = value
 	} else {
 		fmt.Println("error: bad name")
 	}
@@ -2094,11 +2130,87 @@ func showAux(args []string){
 
 	got,has := worldGraph.vertexs[vertName]
 	if has{
-		for key, value := range got.aux{
+		for key, value := range got.Aux{
 			fmt.Print(key, "=", value, "\n")
 		}
 	}
 }
+
+func dfsTrans(g *Graph, vis *map[string]struct{}, cur *gVertex){
+	(*vis)[cur.Name] = struct{}{} // mark as visited
+	fmt.Println("==", cur.Name, "==")
+	cur.transform(cur.Aux) // visit
+	for _, edge := range cur.adj{
+		_,in := (*vis)[edge.dest.Name]
+		if !in{
+			dfsTrans(g, vis, edge.dest)
+		}
+	}
+}
+
+func trans(args []string){
+	visited := map[string]struct{}{}
+	got, in := worldGraph.vertexs[worldGraph.startName]
+	if in {
+		dfsTrans(&worldGraph, &visited, got)
+	} else {
+		fmt.Println("Error: no such starting vertex. use shortestPath first")
+	}
+}
+
+func loadBlock(args []string){
+	var fpath, destName string
+	if len(args) < 2{
+		fmt.Print("file path = ")
+		sc.Scan()
+		fpath=sc.Text()
+
+		fmt.Print("function name = ")
+		sc.Scan()
+		destName=sc.Text()
+	} else {
+		fpath, destName = args[0],args[1]
+	}
+
+	fileh, ferr := os.Open(fpath)
+	if ferr != nil{
+		fmt.Println(ferr)
+		return
+	}
+
+	allData,_ := io.ReadAll(fileh)
+	lines := make([]string,0)
+	if strings.Contains(string(allData), "\r"){
+		lines = strings.Split(string(allData), "\r\n") // windows
+	} else {
+		lines = strings.Split(string(allData), "\n") // unixlike
+	}
+
+	definedFunctions[destName] = lines
+}
+
+
+func transUse(args []string){
+	var vname, fun string
+	if len(args) < 2{
+		fmt.Println("vertex name = ")
+		sc.Scan()
+		vname=sc.Text()
+		fmt.Println("transformation function name = ")
+		sc.Scan()
+		fun=sc.Text()
+	} else{
+		vname,fun = args[0],args[1]
+	}
+
+	got, in := worldGraph.vertexs[vname]
+	if in{
+		got.transform=transformationFns[fun]
+	} else {
+		fmt.Println("name error")
+	}
+}
+
 
 func main(){
 	fmt.Println("Tronlang " + VERSION)
@@ -2111,7 +2223,6 @@ func main(){
 		callStack = append(callStack, stackItem{stptr:0, callerFnName:"main"})
 	}
 
-	//functions := map[string]int64{}
 	// builtIns that are not here are ifstop and return
 	//initialize built in functions
 	builtIns["insertWt"] = insertWt
@@ -2140,7 +2251,7 @@ func main(){
 	builtIns["flip"] = flip
 	builtIns["xmlWt"] = xmlWt
 	builtIns["showXML"] = showXmlTbl
-	builtIns["loadXML"] = loadXML // a much better way
+	builtIns["loadXML"] = loadXML
 	builtIns["nuke"] = nuke
 	builtIns["saveWorldGraph"] = saveWorldGraph
 	builtIns["ifcall"] = ifcall
@@ -2153,15 +2264,18 @@ func main(){
 	builtIns["setCat"] = setCat
 	builtIns["stringToRb"] = stringToRb
 	builtIns["loadCSVFile"] = loadCSVFile
-	builtIns["csvsql"] = csvsql
+	builtIns["csvsql"] = csvsql // under construction. Just doing the select statement first
 	builtIns["sortByColCSV"] = sortByCol
 	builtIns["bins"] = bins //assumes the column is already sorted
 	builtIns["showHeadCSV"] = showHeadCSV
 	builtIns["findAllExactCSV"] = findAllExactCSV
+	//latest and not very tested builtIns
 	builtIns["attachAux"] = attachAux
 	builtIns["searchXMLt"] = searchXMLt // i don't even know if this is faster. verrified cooler tho
 	builtIns["showAux"] = showAux
-
+	builtIns["trans"] = trans
+	builtIns["loadfn"] = loadBlock // load an entire function into memory from disk.
+	builtIns["transUse"] = transUse
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
