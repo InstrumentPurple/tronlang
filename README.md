@@ -45,7 +45,7 @@ if statement is achieved with ifcall and function definitions
 
 !ifcall:"1 1 and","fn","some argument"
 
-start a function definition
+start a function definition. Not needed when using loadFn (previously loadfn)
 
 def a:
 
@@ -75,4 +75,4 @@ do a source loop
 
 add a function from disk
 
-!loadfn:
+!loadFn:
