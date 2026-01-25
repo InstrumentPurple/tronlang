@@ -1,0 +1,18 @@
+td#data{
+    border:1px solid #AAA;
+    border-collapse: collapse;
+    padding:6px;
+}
+
+#footer{
+    font-size:12px;
+}
+
+#mainPage{
+    opacity:0.6;
+    background-color:#FFF;
+}
+
+body{
+    background-color:#AAA;
+}
