@@ -67,9 +67,14 @@ import "io"
 import "encoding/csv"
 import "encoding/json"
 import "runtime"
+import "io/ioutil"
 import(
 "math/big"
 "strconv"
+)
+import(
+	"net/http"
+	"html/template"
 )
 
 var DEBUG bool = false
@@ -273,12 +278,10 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-
+const(VERSION="v0.65")
+var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
-
-const(VERSION="v0.6")
-var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var callStack []stackItem = []stackItem{}
 var worldTree *C.tree = nil
@@ -803,10 +806,10 @@ func parseAndCall(content string, useless int64) bool{
 					callArgs = append(callArgs, ar)
 				}
 				call(callArgs)
+			} else {
+				fmt.Println("name error")
 			}
-
 		}
-
 		return true
 	}
 	return false
@@ -952,14 +955,26 @@ func insertShort(args []string){
 }
 
 func newString(args []string){
+	var name string
 	if len(args) == 0{
 		fmt.Print("string name = ")
 		sc.Scan()
-		args = append(args, sc.Text())
-	}
+		name=sc.Text()
+		fmt.Print("value = ")
+		sc.Scan()
+		strTbl[name] = sc.Text()
+	} else {
+		if (len(args) % 2) == 1{
+			fmt.Println("that's odd. Trying anyway.")
+		}
 
-	for _,val := range args{
-		strTbl[val]=""
+		i:=0
+		for i < len(args){
+			if len(args) > (i+1) {
+				strTbl[args[i]]= args[i+1]
+			}
+			i += 2
+		}
 	}
 }
 
@@ -1654,7 +1669,7 @@ func searchXMLt(args []string){
 		dataCh <- bundleXMLt{data: xml.data, path: path}
 	}
 
-	abortCh <- struct{}{} // clean up the goroutine. hopefully it happens before the next print
+	abortCh <- struct{}{} // clean up the goroutine. hopefully it happens before the next print. After learning a few concurrency things this all should work since chans are syncronizing things
 }
 
 func searchXML(args []string){
@@ -2212,10 +2227,51 @@ func transUse(args []string){
 }
 
 
+func quitFn(args []string){
+	os.Exit(0)
+}
+
+
+//////////////////////////
+// http web app functions
+
+type varWrapper struct{
+	Strs map[string]string
+	Rbs map[string]float64
+	Booles map[string]bool
+}
+
+func frontpage(writer http.ResponseWriter, req *http.Request){
+	//writer.Write([]byte("<h1>hello sever</h1>"))
+
+	wrapped := varWrapper{
+		Strs: strTbl,
+		Rbs: rootBeer,
+		Booles: boole,
+	}
+
+	templ,_ :=template.ParseFiles("./front.html.tmpl")
+	templ.Execute(writer, wrapped)
+}
+
+
+
+func css(wr http.ResponseWriter, req *http.Request){
+	wr.Header().Set("Content-Type", "text/css")
+	data,_ := ioutil.ReadFile("./global.css")
+	wr.Write(data)
+}
+
 func main(){
 	fmt.Println("Tronlang " + VERSION)
 
 	command := ""
+
+	serverAddr := "localhost:64063"
+	http.HandleFunc("/", frontpage)
+	http.HandleFunc("/global.css", css)
+	go http.ListenAndServe(serverAddr, http.DefaultServeMux)
+	fmt.Println("serving http at " + serverAddr)
 
 	if len(os.Args) > 1{
 		callStack = append(callStack, stackItem{stptr:0, callerFnName:"main", args: os.Args[1:]})
@@ -2274,8 +2330,11 @@ func main(){
 	builtIns["searchXMLt"] = searchXMLt // i don't even know if this is faster. verrified cooler tho
 	builtIns["showAux"] = showAux
 	builtIns["trans"] = trans
-	builtIns["loadfn"] = loadBlock // load an entire function into memory from disk.
+	//NOTE: CHANGED THE F TO A CAPITAL
+	builtIns["loadFn"] = loadBlock // load an entire function into memory from disk.
 	builtIns["transUse"] = transUse
+
+	builtIns["quit"]=quitFn
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
