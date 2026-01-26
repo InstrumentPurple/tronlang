@@ -278,7 +278,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v0.66")
+const(VERSION="v0.67")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -855,11 +855,13 @@ func findWt(args []string){
 	ctxt := C.CString(txt)
 
 	got := C.tree_find_str(&worldTree, ctxt)
-	C.puts((*C.char)(got.data))
+	if got != nil{
+		C.puts((*C.char)(got.data))
 
-
-	emit([]string{"findWt",C.GoString((*C.char)(got.data))})
-
+		emit([]string{"findWt",C.GoString((*C.char)(got.data))})
+	} else {
+		fmt.Println("path error")
+	}
 	C.free(unsafe.Pointer(ctxt))
 }
 
