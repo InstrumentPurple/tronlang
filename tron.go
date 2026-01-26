@@ -179,7 +179,7 @@ func (g *Graph) printPath_(dest *gVertex){
 	if dest.prev != nil{
 		g.printPath_(dest.prev)
 	}
-	fmt.Print(dest.Name + " ")
+	fmt.Print(dest.Name + "/")
 }
 
 func (g *Graph) printPath(dest string){
@@ -188,9 +188,9 @@ func (g *Graph) printPath(dest string){
 	if okay{
 		g.printPath_(foundItem)
 		if foundItem.dist == INFINITY{
-			fmt.Println("cost:", "inf")
+			fmt.Println(" cost:", "inf")
 		} else{
-			fmt.Println("cost:", foundItem.dist)
+			fmt.Println(" cost:", foundItem.dist)
 		}
 	}
 
@@ -278,7 +278,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v0.65")
+const(VERSION="v0.66")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -836,9 +836,6 @@ func insertWt(args []string){
 
 	C.tree_make_path_str(&worldTree, strpath)
 	C.tree_insert_str(&worldTree, strpath, data)
-
-	C.free(data)
-	C.free(unsafe.Pointer(strpath))
 }
 
 func showWt(useless []string){
@@ -1051,7 +1048,6 @@ func math_(args []string){
 }
 
 func newRootBeer(args []string){
-
 	var name, val string
 	if len(args) < 2{
 		fmt.Print("name = ")
@@ -1247,7 +1243,6 @@ func shortestPath(args []string){
 			fmt.Println("graph negative with nil dest")
 		}
 		worldGraph.negative(src)
-
 	}
 }
 
@@ -1582,7 +1577,6 @@ func setString(args []string){
 
 
 func findSingleXML(args []string){
-
 	var tblName, path string
 
 	if len(args) < 2 {
