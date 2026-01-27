@@ -278,7 +278,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v0.67")
+const(VERSION="v0.68")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -634,7 +634,7 @@ func run(blank []string){
 					if err != nil {
 						fmt.Println(err)
 					} else {
-						rootBeer[topItem.callerFnName+"."+id] = val
+						rootBeer[id] = val
 					}
 				}
 			}
@@ -2204,10 +2204,10 @@ func loadBlock(args []string){
 func transUse(args []string){
 	var vname, fun string
 	if len(args) < 2{
-		fmt.Println("vertex name = ")
+		fmt.Print("vertex name = ")
 		sc.Scan()
 		vname=sc.Text()
-		fmt.Println("transformation function name = ")
+		fmt.Print("transformation function name = ")
 		sc.Scan()
 		fun=sc.Text()
 	} else{
@@ -2225,6 +2225,44 @@ func transUse(args []string){
 
 func quitFn(args []string){
 	os.Exit(0)
+}
+
+func pourSlice(subj []string)string{
+	end := ""
+	for _,val := range subj{
+		end += val
+		end += "\t\t"
+	}
+
+	return end
+}
+
+
+func csvByIndex(args []string){
+	var tblName,index string
+
+	if len(args) < 2{
+		fmt.Print("csv table name = ")
+		sc.Scan()
+		tblName = sc.Text()
+
+		fmt.Print("index number = ")
+		sc.Scan()
+		index=sc.Text()
+	} else{
+		tblName,index=args[0],args[1]
+	}
+
+	indVal,_:=strconv.Atoi(index)
+
+	table, isIn := csvTbl[tblName]
+	if isIn && indVal < len(table.data){
+		got := pourSlice(table.data[indVal]) // as crazy as this sounds there actually isn't a nice way to convert this back to csv otherwise that's what I'd be doing here
+		fmt.Println(got)
+		emit([]string{"byIndexCSV", got})
+	} else {
+		fmt.Println("name error or out of range index")
+	}
 }
 
 
@@ -2315,7 +2353,8 @@ func main(){
 	builtIns["reMatch"] = reMatch
 	builtIns["setCat"] = setCat
 	builtIns["stringToRb"] = stringToRb
-	builtIns["loadCSVFile"] = loadCSVFile
+	//NOTE: removed the word file from the name to match loadXML
+	builtIns["loadCSV"] = loadCSVFile
 	builtIns["csvsql"] = csvsql // under construction. Just doing the select statement first
 	builtIns["sortByColCSV"] = sortByCol
 	builtIns["bins"] = bins //assumes the column is already sorted
@@ -2329,8 +2368,9 @@ func main(){
 	//NOTE: CHANGED THE F TO A CAPITAL
 	builtIns["loadFn"] = loadBlock // load an entire function into memory from disk.
 	builtIns["transUse"] = transUse
-
 	builtIns["quit"]=quitFn
+
+	builtIns["byIndexCSV"]=csvByIndex // goes with bins
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
@@ -2342,7 +2382,6 @@ func main(){
 			parseAndCall(command, iGuessIptr)
 			iGuessIptr++
 		} else if(re["defFunc"].MatchString(command)){
-
 			instructions := []string{}
 
 			name := strings.Trim(command, "def ")
@@ -2366,7 +2405,7 @@ func main(){
 								break;
 							} else {
 								k=append(k, sc.Text())
-								fmt.Print("rootbeer expression =")
+								fmt.Print("rootbeer expression = ")
 								sc.Scan()
 								exprs=append(exprs, sc.Text())
 							}
