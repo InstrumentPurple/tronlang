@@ -280,7 +280,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v0.71.2")
+const(VERSION="v0.72")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -888,7 +888,12 @@ func insertWt(args []string){
 	} else if(len(args) >= 2) {
 		path, line = args[0], args[1]
 	}
-
+	
+	if path[0] != ([]byte("/")[0]){	
+		path = "/" + path
+		fmt.Println("fixing path")
+	}
+	
 	data = unsafe.Pointer(C.CString(line))
 	strpath := C.CString(path)
 
@@ -2316,7 +2321,7 @@ func csvByIndex(args []string){
 	indVal,_:=strconv.Atoi(index)
 
 	table, isIn := csvTbl[tblName]
-	if isIn && indVal < len(table.data){
+	if isIn && indVal < len(table.data) && indVal >= 0 {
 		got := pourSlice(table.data[indVal]) // as crazy as this sounds there actually isn't a nice way to convert this back to csv otherwise that's what I'd be doing here
 		fmt.Println(got)
 		emit([]string{"byIndexCSV", got})
@@ -2361,8 +2366,6 @@ type varWrapper struct{
 }
 
 func frontpage(writer http.ResponseWriter, req *http.Request){
-	//writer.Write([]byte("<h1>hello sever</h1>"))
-
 	wrapped := varWrapper{
 		Strs: strTbl,
 		Rbs: rootBeer,
@@ -2424,9 +2427,12 @@ func webWt(wr http.ResponseWriter, req *http.Request){
 	} else {
 		template.Execute(wr, "path error")
 	}
-	C.free(unsafe.Pointer(ctxt))
 	
-	 
+	C.free(unsafe.Pointer(ctxt)) 
+}
+
+func nullFn(args []string){
+	
 }
 
 func main(){
@@ -2440,6 +2446,7 @@ func main(){
 	http.HandleFunc("/ms2236__c01__f02_.jpg", backgroundImg)
 	http.HandleFunc("/shortResults", webShortResults)
 	http.HandleFunc("/wt", webWt)
+	
 	go http.ListenAndServe(serverAddr, http.DefaultServeMux)
 	fmt.Println("serving http at " + serverAddr)
 
@@ -2507,7 +2514,10 @@ func main(){
 	builtIns["quit"]=quitFn
 	builtIns["byIndexCSV"]=csvByIndex // goes with bins
 
-
+	builtIns["null"]=nullFn
+	builtIns["nil"]=nullFn
+	
+	
 	if fileExists("./init.tron"){
 		loadBlock([]string{"./init.tron","init"})
 		parseAndCall("!init:",0)
