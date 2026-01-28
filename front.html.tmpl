@@ -34,6 +34,12 @@
 </table>
 
 <hr>
+<h2>Short Tables</h2>
+{{range $ind, $elm := .ShtTbls}}
+<form method="GET" action="/shortResults">
+{{$elm}}<input name="tbl"  type="hidden" value="{{$elm}}"></input><input name="q" value=""></input><button type="submit">submit</button>
+</form>
+{{end}}
 </div>
 <div id="footer">
 <p>
