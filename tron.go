@@ -280,7 +280,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v0.71")
+const(VERSION="v0.71.2")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -703,7 +703,7 @@ func run(blank []string){
 				
 				fin := doSourceLoop(line)
 				if fin{
-					callStack = callStack[0:(len(callStack)-1)]
+					callStack[len(callStack)-1].stptr = iptr + 1
 					goto startLoop
 				}
 				
