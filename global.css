@@ -11,8 +11,10 @@ td#data{
 #mainPage{
     opacity:0.6;
     background-color:#FFF;
+    padding:30px;
 }
 
 body{
     background-color:#AAA;
+    background-image:url(/ms2236__c01__f02_.jpg);
 }
