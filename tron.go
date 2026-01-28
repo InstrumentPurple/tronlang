@@ -68,6 +68,7 @@ import "encoding/csv"
 import "encoding/json"
 import "runtime"
 import "io/ioutil"
+import "maps"
 import(
 "math/big"
 "strconv"
@@ -278,7 +279,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v0.68")
+const(VERSION="v43758294705.45435.3454 (SUPER CUSTOMIZED AND TRICKED OUT; HA. BETTER THAN PYTHON)")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -668,7 +669,12 @@ func run(blank []string){
 						if strings.Contains(arg, "args:") && !strings.Contains(arg, " "){
 							id := (strings.Split(arg, "args:"))[1]
 							id_,_ :=strconv.Atoi(id)
-							args[i] = callStack[len(callStack)-1].args[id_]
+							if len(callStack[len(callStack)-1].args) > id_{
+								args[i] = callStack[len(callStack)-1].args[id_]
+							} else {
+								fmt.Println("args length not met. Did you forget to add them to your call?")
+								return
+							}
 							//fmt.Println("args[i]", args[i])
 						}
 					}
@@ -677,7 +683,12 @@ func run(blank []string){
 				parseDeref(&args)
 
 				if(fnname == "ifstop"){
-					if boole[args[0]]{
+					good, err := evalBooleExpr(args[0])
+					if err != nil{
+						fmt.Println(err)
+						return
+					}
+					if good {
 						if DEBUG{
 						fmt.Println("poping stack from ifstop")
 						}
@@ -2266,6 +2277,16 @@ func csvByIndex(args []string){
 }
 
 
+func getKeysFromShortTbls()[]string{
+	total := make([]string,0)
+	for key := range maps.Keys(shortTbls) {
+		total = append(total, key)
+	}
+
+	return total
+}
+
+
 //////////////////////////
 // http web app functions
 
@@ -2273,6 +2294,7 @@ type varWrapper struct{
 	Strs map[string]string
 	Rbs map[string]float64
 	Booles map[string]bool
+	ShtTbls []string
 }
 
 func frontpage(writer http.ResponseWriter, req *http.Request){
@@ -2282,6 +2304,7 @@ func frontpage(writer http.ResponseWriter, req *http.Request){
 		Strs: strTbl,
 		Rbs: rootBeer,
 		Booles: boole,
+		ShtTbls: getKeysFromShortTbls(),
 	}
 
 	templ,_ :=template.ParseFiles("./front.html.tmpl")
@@ -2296,6 +2319,34 @@ func css(wr http.ResponseWriter, req *http.Request){
 	wr.Write(data)
 }
 
+func webShortResults(wr http.ResponseWriter, req *http.Request){
+
+	req.ParseForm()
+
+	tblName := req.FormValue("tbl")
+	keyName := req.FormValue("q")
+
+	templ,_ :=template.ParseFiles("./shortResult.html.tmpl")
+	tbl,intbl := shortTbls[tblName]
+	if intbl{
+		got := tbl.Find(keyName)
+		if got == ""{
+			templ.Execute(wr, "blank or key does not exist")
+		} else {
+			templ.Execute(wr, got)
+		}
+	} else {
+		wr.Write([]byte("<h1>Name error</h1>"))
+	}
+}
+
+
+func backgroundImg(wr http.ResponseWriter, req *http.Request){
+	wr.Header().Set("Content-Type", "image/jpeg")
+	imgData, _ := ioutil.ReadFile("./ms2236__c01__f02_.jpg")
+	wr.Write(imgData)
+}
+
 func main(){
 	fmt.Println("Tronlang " + VERSION)
 
@@ -2304,6 +2355,8 @@ func main(){
 	serverAddr := "localhost:64063"
 	http.HandleFunc("/", frontpage)
 	http.HandleFunc("/global.css", css)
+	http.HandleFunc("/ms2236__c01__f02_.jpg", backgroundImg)
+	http.HandleFunc("/shortResults", webShortResults)
 	go http.ListenAndServe(serverAddr, http.DefaultServeMux)
 	fmt.Println("serving http at " + serverAddr)
 
