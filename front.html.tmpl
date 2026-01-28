@@ -8,7 +8,7 @@
 <body>
 <div id="mainPage">
 <h1>Tronlang</h1>
-<hr>
+<hr/>
 <table>
 
 <tr><th>Rootbeers</th>
@@ -33,13 +33,21 @@
 
 </table>
 
-<hr>
+<hr/>
 <h2>Short Tables</h2>
 {{range $ind, $elm := .ShtTbls}}
 <form method="GET" action="/shortResults">
 {{$elm}}<input name="tbl"  type="hidden" value="{{$elm}}"></input><input name="q" value=""></input><button type="submit">submit</button>
 </form>
 {{end}}
+<hr/>
+
+<h2>World Tree</h2>
+<form method="GET" action="/wt">
+(This should be a unix style directory)<br/><input name="dir" value=""></input><button type="submit">submit</button>
+</form>
+
+
 </div>
 <div id="footer">
 <p>
