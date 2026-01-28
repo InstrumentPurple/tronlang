@@ -69,6 +69,7 @@ import "encoding/json"
 import "runtime"
 import "io/ioutil"
 import "maps"
+import "errors"
 import(
 "math/big"
 "strconv"
@@ -279,7 +280,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v43758294705.45435.3454 (SUPER CUSTOMIZED AND TRICKED OUT; HA. BETTER THAN PYTHON)")
+const(VERSION="v0.71")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -608,6 +609,42 @@ func parseDeref(args *[]string){
 }
 
 
+func doSourceLoop(content string)bool{
+	if re["validCall"].MatchString(content){
+		got:=strings.Replace( content, ":","[seperator]", 1) //needs to be unique
+
+		sep := strings.Split(got,"[seperator]")
+
+		if len(sep) >= 2{
+			callPart, argPart := sep[0], sep[1]
+
+			if re["sourceLoop"].MatchString(argPart){
+				path := strings.Trim(argPart, "(src ")
+				path = strings.Trim(path, ")")
+
+				file,_ := os.Open(path)
+				defer file.Close()
+
+				fsc := bufio.NewScanner(file)
+
+				args := ""
+				for fsc.Scan(){
+					args = fsc.Text()
+
+					cmd := callPart+":"+args
+					fmt.Println(cmd)
+					parseAndCall(cmd, 0)
+
+				}
+				
+				return true //we saw one and executed it
+			} else {
+				return false
+			}
+		}
+	}
+	return false
+}
 
 
 // the callstack take 2
@@ -662,6 +699,14 @@ func run(blank []string){
 
 				fnname := getName(line)
 				args := getArgs(line)
+				
+				
+				fin := doSourceLoop(line)
+				if fin{
+					callStack = callStack[0:(len(callStack)-1)]
+					goto startLoop
+				}
+				
 				// this is not maintainable
 				if fnname != "setBoole" && fnname != "math" && fnname != "mathSet"{ // handled in RPN
 					for i, arg := range args{
@@ -747,6 +792,8 @@ func parseAndCall(content string, useless int64) bool{
 	//remove whitespace from entity
 	//TODO: it doesn't do that
 	content = re["begWhiteSpace"].ReplaceAllString(content, "")
+	content = re["trailWhiteSpace"].ReplaceAllString(content,"")
+	
 
 	if strings.Contains(content, "\"") && content[len(content)-1] != "\""[0] {
 		fmt.Print("Did you intend on placing a Quote at the end of your line? (Y/n) ")
@@ -1154,6 +1201,8 @@ func evalBooleExpr(expression string)(bool,error) {
 					result = boolToFloat64(operand1 > operand2)
 				case "eq":
 					result = boolToFloat64(operand1 == operand2)
+				case "gteq":
+					result = boolToFloat64(operand1 >= operand2)
 				case "and":
 					result = boolToFloat64(float64ToBool(operand1) && float64ToBool(operand2))
 				case "or":
@@ -2287,6 +2336,20 @@ func getKeysFromShortTbls()[]string{
 }
 
 
+
+func fileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+
+	return false
+}
+
+
 //////////////////////////
 // http web app functions
 
@@ -2320,7 +2383,6 @@ func css(wr http.ResponseWriter, req *http.Request){
 }
 
 func webShortResults(wr http.ResponseWriter, req *http.Request){
-
 	req.ParseForm()
 
 	tblName := req.FormValue("tbl")
@@ -2347,6 +2409,26 @@ func backgroundImg(wr http.ResponseWriter, req *http.Request){
 	wr.Write(imgData)
 }
 
+func webWt(wr http.ResponseWriter, req *http.Request){
+	template, _ := template.ParseFiles("./shortResult.html.tmpl") //this is simple enough that i resuse it
+	
+	req.ParseForm()
+	txt := req.FormValue("dir")
+	ctxt := C.CString(txt)
+
+	got := C.tree_find_str(&worldTree, ctxt)
+	if got != nil{
+		has := (*C.char)(got.data)
+
+		template.Execute(wr,C.GoString(has))
+	} else {
+		template.Execute(wr, "path error")
+	}
+	C.free(unsafe.Pointer(ctxt))
+	
+	 
+}
+
 func main(){
 	fmt.Println("Tronlang " + VERSION)
 
@@ -2357,6 +2439,7 @@ func main(){
 	http.HandleFunc("/global.css", css)
 	http.HandleFunc("/ms2236__c01__f02_.jpg", backgroundImg)
 	http.HandleFunc("/shortResults", webShortResults)
+	http.HandleFunc("/wt", webWt)
 	go http.ListenAndServe(serverAddr, http.DefaultServeMux)
 	fmt.Println("serving http at " + serverAddr)
 
@@ -2422,8 +2505,14 @@ func main(){
 	builtIns["loadFn"] = loadBlock // load an entire function into memory from disk.
 	builtIns["transUse"] = transUse
 	builtIns["quit"]=quitFn
-
 	builtIns["byIndexCSV"]=csvByIndex // goes with bins
+
+
+	if fileExists("./init.tron"){
+		loadBlock([]string{"./init.tron","init"})
+		parseAndCall("!init:",0)
+	}
+
 
 	var recentDefName string = "main"
 	iGuessIptr := int64(0)
