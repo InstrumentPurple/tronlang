@@ -2,6 +2,9 @@ td#data{
     border:1px solid #AAA;
     border-collapse: collapse;
     padding:6px;
+	word-wrap: break-word;
+	overflow-wrap: break-word; /* Modern standard alias for word-wrap */
+	max-width:360px;
 }
 
 #footer{
