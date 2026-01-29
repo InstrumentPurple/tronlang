@@ -17,6 +17,8 @@ check out tron.go for a list of the built in's in main
 
 arguments are CSV
 
+function names must be alpha-numeric
+
 set rootbeer variable j to 0
 
 !setMath:"j","0.0"
