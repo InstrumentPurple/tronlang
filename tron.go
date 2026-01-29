@@ -280,7 +280,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v0.73.0 (CSV workshop unexpected teaser trailer)")
+const(VERSION="v0.73.1 (CSV workshop unexpected teaser trailer)")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -648,16 +648,7 @@ func doSourceLoop(content string)bool{
 				_,inDeffn := definedFunctions[fnName]
 				
 				if inDeffn {
-					args := ""
-					for fsc.Scan(){
-						args = fsc.Text()
-
-						cmd := callPart+":"+args
-						fmt.Println(cmd)
-						
-						pArgs := parseToArgsSlice(args)
-						call(append(pArgs, fnName))
-					}
+					fmt.Println("This doesn't work on user inputed functions. Only on builtIns. Sorry. I have to squeeze my tiny 115 iq at the run routine and figure out what to do with the call stack.")
 					
 					return true //we saw one and executed it
 				} else {
@@ -867,7 +858,6 @@ func parseAndCall(content string, useless int64) bool{
 					cmd := callPart+":"+args
 					fmt.Println(cmd)
 					parseAndCall(cmd, 0)
-
 				}
 
 				return true
@@ -875,15 +865,9 @@ func parseAndCall(content string, useless int64) bool{
 
 			//fmt.Println(callPart, argPart)
 			//parse arguments as they are csv encoded
-			csvDataC := C.CString(argPart)
-			parsedArgDataC := C.parse_csv(csvDataC)
+			
 			var args []string
-
-			if argPart != ""{ // get it into golang better
-				args = convertToStringSlice(parsedArgDataC)
-			} else {
-				 args = []string{}
-			}
+			args = parseToArgsSlice(argPart)
 
 			parseDeref(&args)
 
