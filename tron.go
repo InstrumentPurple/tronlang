@@ -280,7 +280,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v0.72")
+const(VERSION="v0.73.0 (CSV workshop unexpected teaser trailer)")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -609,6 +609,22 @@ func parseDeref(args *[]string){
 }
 
 
+
+func parseToArgsSlice(argPart string)[]string{
+	csvDataC := C.CString(argPart)
+	parsedArgDataC := C.parse_csv(csvDataC)
+	var args []string
+
+	if argPart != ""{ // get it into golang better
+		args = convertToStringSlice(parsedArgDataC)
+	} else {
+		 args = []string{}
+	}
+	return args
+}
+
+
+
 func doSourceLoop(content string)bool{
 	if re["validCall"].MatchString(content){
 		got:=strings.Replace( content, ":","[seperator]", 1) //needs to be unique
@@ -627,17 +643,37 @@ func doSourceLoop(content string)bool{
 
 				fsc := bufio.NewScanner(file)
 
-				args := ""
-				for fsc.Scan(){
-					args = fsc.Text()
-
-					cmd := callPart+":"+args
-					fmt.Println(cmd)
-					parseAndCall(cmd, 0)
-
-				}
+				fnName := strings.Trim(callPart,"!")
 				
-				return true //we saw one and executed it
+				_,inDeffn := definedFunctions[fnName]
+				
+				if inDeffn {
+					args := ""
+					for fsc.Scan(){
+						args = fsc.Text()
+
+						cmd := callPart+":"+args
+						fmt.Println(cmd)
+						
+						pArgs := parseToArgsSlice(args)
+						call(append(pArgs, fnName))
+					}
+					
+					return true //we saw one and executed it
+				} else {
+				
+					args := ""
+					for fsc.Scan(){
+						args = fsc.Text()
+
+						cmd := callPart+":"+args
+						fmt.Println(cmd)
+						parseAndCall(cmd, 0)
+
+					}
+					
+					return true //we saw one and executed it
+				}
 			} else {
 				return false
 			}
@@ -645,6 +681,8 @@ func doSourceLoop(content string)bool{
 	}
 	return false
 }
+
+
 
 
 // the callstack take 2
@@ -657,6 +695,7 @@ func run(blank []string){
 			fmt.Println("top of stack for ", topItem.callerFnName)
 		}
 
+		//TODO: look at when we goto startLoop without it being a new function call. I think this is causing kv's to be re-evaluated
 		kv,hasKv := definedFunKvargs[topItem.callerFnName]
 		if hasKv{
 			if DEBUG{
@@ -788,12 +827,11 @@ func run(blank []string){
 	}
 }
 
+
+
+
 func parseAndCall(content string, useless int64) bool{
-	//remove whitespace from entity
-	//TODO: it doesn't do that
-	content = re["begWhiteSpace"].ReplaceAllString(content, "")
-	content = re["trailWhiteSpace"].ReplaceAllString(content,"")
-	
+	//TODO: remove whitespace from entity
 
 	if strings.Contains(content, "\"") && content[len(content)-1] != "\""[0] {
 		fmt.Print("Did you intend on placing a Quote at the end of your line? (Y/n) ")
@@ -919,9 +957,14 @@ func findWt(args []string){
 
 	got := C.tree_find_str(&worldTree, ctxt)
 	if got != nil{
-		C.puts((*C.char)(got.data))
+		if got.key != nil {
+			fmt.Println("subtree of", txt)
+			C.tree_print(got)
+		} else {
+			C.puts((*C.char)(got.data))
 
-		emit([]string{"findWt",C.GoString((*C.char)(got.data))})
+			emit([]string{"findWt",C.GoString((*C.char)(got.data))})
+		}
 	} else {
 		fmt.Println("path error")
 	}
@@ -959,10 +1002,10 @@ func findShort(args []string){
 
 	tbl,intbl := shortTbls[name]
 	if intbl{
-	got := tbl.Find(key)
-	emit([]string{"findShort", got})
+		got := tbl.Find(key)
+		emit([]string{"findShort", got})
 
-	fmt.Println(got)
+		fmt.Println(got)
 	} else {
 		fmt.Println("name error")
 	}
@@ -1865,7 +1908,7 @@ func stringToRb(args []string){
 
 func loadCSVFile(args []string){
 	var fpath, tname, hasHeader string
-	if len(args) < 2{
+	if len(args) < 3{
 		fmt.Print("file path = ")
 		sc.Scan()
 		fpath = sc.Text()
@@ -2355,6 +2398,102 @@ func fileExists(filename string) bool {
 }
 
 
+func nullFn(args []string){
+
+}
+
+func findPrefixCSV(args []string){
+	var prefixStr,tblName, colNum string
+	if len(args) < 3{
+		fmt.Print("prefix to search for = ")
+		sc.Scan()
+		prefixStr=sc.Text()
+		fmt.Print("csv table = ")
+		sc.Scan()
+		tblName=sc.Text()
+		fmt.Print("column number = ")
+		sc.Scan()
+		colNum=sc.Text()
+	} else {
+		prefixStr, tblName, colNum = args[0],args[1],args[2]
+	}
+
+	colId,_ := strconv.Atoi(colNum)
+	gotTbl, incsvtbl := csvTbl[tblName]
+	pre := C.CString(prefixStr)
+	if incsvtbl && colId >= 0{
+		for _, row := range gotTbl.data{
+			if len(row) > colId{
+				cell := C.CString(row[colId])
+
+				hasPrefix := C.prefix(cell, pre)
+				if bool(hasPrefix){
+					psr := pourSlice(row)
+					fmt.Println(psr)
+					emit([]string{"findPrefixCSV", psr})
+				}
+
+				C.free(unsafe.Pointer(cell))
+
+			} else {
+				fmt.Println("column number too large")
+			}
+		}
+	} else {
+		fmt.Println("name error or negative column number")
+	}
+
+	C.free(unsafe.Pointer(pre))
+}
+
+
+
+func findPostfixCSV(args []string){
+	var postfixStr,tblName, colNum string
+	if len(args) < 3{
+		fmt.Print("postfix to search for = ")
+		sc.Scan()
+		postfixStr=sc.Text()
+		fmt.Print("csv table = ")
+		sc.Scan()
+		tblName=sc.Text()
+		fmt.Print("column number = ")
+		sc.Scan()
+		colNum=sc.Text()
+	} else {
+		postfixStr, tblName, colNum = args[0],args[1],args[2]
+	}
+
+	colId,_ := strconv.Atoi(colNum)
+	gotTbl, incsvtbl := csvTbl[tblName]
+	post := C.CString(postfixStr)
+	if incsvtbl && colId >= 0{
+		for _, row := range gotTbl.data{
+			if len(row) > colId{
+				cell := C.CString(row[colId])
+
+				hasPrefix := C.postfix(cell, post)
+				if bool(hasPrefix){
+					psr := pourSlice(row)
+					fmt.Println(psr)
+					emit([]string{"findPostfixCSV", psr})
+				}
+
+				C.free(unsafe.Pointer(cell))
+
+			} else {
+				fmt.Println("column number too large")
+			}
+		}
+	} else {
+		fmt.Println("name error or negative column number")
+	}
+
+	C.free(unsafe.Pointer(post))
+}
+
+
+
 //////////////////////////
 // http web app functions
 
@@ -2413,7 +2552,7 @@ func backgroundImg(wr http.ResponseWriter, req *http.Request){
 }
 
 func webWt(wr http.ResponseWriter, req *http.Request){
-	template, _ := template.ParseFiles("./shortResult.html.tmpl") //this is simple enough that i resuse it
+	template, _ := template.ParseFiles("./shortResult.html.tmpl") //this is simple enough that i reuse it
 	
 	req.ParseForm()
 	txt := req.FormValue("dir")
@@ -2431,9 +2570,7 @@ func webWt(wr http.ResponseWriter, req *http.Request){
 	C.free(unsafe.Pointer(ctxt)) 
 }
 
-func nullFn(args []string){
-	
-}
+
 
 func main(){
 	fmt.Println("Tronlang " + VERSION)
@@ -2513,10 +2650,27 @@ func main(){
 	builtIns["transUse"] = transUse
 	builtIns["quit"]=quitFn
 	builtIns["byIndexCSV"]=csvByIndex // goes with bins
-
 	builtIns["null"]=nullFn
 	builtIns["nil"]=nullFn
 	
+	builtIns["findPrefixCSV"]=findPrefixCSV
+	builtIns["findPostfixCSV"]=findPostfixCSV
+	//builtIns["setCellCSV"]=setCellCSV
+	//builtIns["setCellDirectCSV"] = setCellDirectCSV
+	//builtIns["filterByBlacklistCSV"]=filterByBlacklist
+	//builtIns["newList"] = newList
+	//builtIns["byIndexList"]=byIndexEmitList
+	//builtIns["applyToList"]=applyToList
+	//builtIns["findHeaderCSV"]=findHeaderCSV
+	//builtIns["cropCSV"]=cropCSV
+	//builtIns["saveCSV"]=saveCSV
+	//builtIns["newFile"]=newFile
+	//builtIns["readLine"]=readline
+	//builtIns["closeFile"]=closeFile
+	//builtIns["writeLine"]=writeLine
+	//builtIns["writeCSV"]=writeCSV
+	//builtIns["rowToList"]=rowToList
+	//modify emit to append to list
 	
 	if fileExists("./init.tron"){
 		loadBlock([]string{"./init.tron","init"})
