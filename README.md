@@ -31,52 +31,76 @@ expressions are reverse polish notation
 !setMath:"m","j 1 +"
 ```
 
+```
 !setBoole:"now","0"
-
+```
 boolean expressions are also reversion polish notation
 
+```
 !setBoole:"now","1 0 and"
-
+```
 we are now ready to call the test function and watch it count
 
+```
 !call:"test"
+```
 
 reset the interpreter's state
 
+```
 !nuke:
+```
 
 if statement is achieved with ifcall and function definitions
 
+```
 !ifcall:"1 1 and","fn","some argument"
+```
 
 start a function definition. Not needed when using loadFn (previously loadfn)
-
+```
 def a:
+```
 
 use arguments
 
+```
 !mathSet:"k","args:0 1 +"
+```
 
 return string
 
+```
 !return:"a string"
+```
 
 return value of variable
 
+```
 !return:"deref:k"
+```
 
 end a function definition
 
+```
 enddef
+```
 
 get most previous return value
 
+```
 !storeRet:"varhere"
+```
 
 do a source loop
 
+```
 !addEdge:(src ./edges.csv)
+```
 
 add a function from disk
 
+```
 !loadFn:
+```
+
