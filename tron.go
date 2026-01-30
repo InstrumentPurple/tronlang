@@ -280,7 +280,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v0.73.1 (CSV workshop unexpected teaser trailer)")
+const(VERSION="v0.73.2 (CSV workshop update v0.74 rollout progress)")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -638,9 +638,14 @@ func doSourceLoop(content string)bool{
 				path := strings.Trim(argPart, "(src ")
 				path = strings.Trim(path, ")")
 
-				file,_ := os.Open(path)
+				file,err := os.Open(path)
 				defer file.Close()
 
+				if err != nil{
+					fmt.Println(err)
+					return true
+				}
+				
 				fsc := bufio.NewScanner(file)
 
 				fnName := strings.Trim(callPart,"!")
@@ -648,11 +653,10 @@ func doSourceLoop(content string)bool{
 				_,inDeffn := definedFunctions[fnName]
 				
 				if inDeffn {
-					fmt.Println("This doesn't work on user inputed functions. Only on builtIns. Sorry. I have to squeeze my tiny 115 iq at the run routine and figure out what to do with the call stack.")
+					fmt.Println("A sourceloop on a user defined fn within a user defined fn doesn't work. Only on builtIns. Sorry. I have to squeeze my tiny 115 iq at the run routine and figure out what to do with the call stack.")
 					
-					return true //we saw one and executed it
+					return true // will get run to ignor it
 				} else {
-				
 					args := ""
 					for fsc.Scan(){
 						args = fsc.Text()
@@ -660,7 +664,6 @@ func doSourceLoop(content string)bool{
 						cmd := callPart+":"+args
 						fmt.Println(cmd)
 						parseAndCall(cmd, 0)
-
 					}
 					
 					return true //we saw one and executed it
@@ -731,14 +734,16 @@ func run(blank []string){
 				args := getArgs(line)
 				
 				
-				fin := doSourceLoop(line)
-				if fin{
-					callStack[len(callStack)-1].stptr = iptr + 1
-					goto startLoop
+				finLine := doSourceLoop(line)
+				if finLine{
+					iptr++
+					continue;
+					//callStack[len(callStack)-1].stptr = iptr + 1
+					///goto startLoop
 				}
 				
 				// this is not maintainable
-				if fnname != "setBoole" && fnname != "math" && fnname != "mathSet"{ // handled in RPN
+				if fnname != "setBoole" && fnname != "math" && fnname != "mathSet"{ // handled in RPN evaluators
 					for i, arg := range args{
 
 						if strings.Contains(arg, "args:") && !strings.Contains(arg, " "){
@@ -822,7 +827,7 @@ func run(blank []string){
 
 
 func parseAndCall(content string, useless int64) bool{
-	//TODO: remove whitespace from entity
+	//TODO: remove whitespace from begining of content
 
 	if strings.Contains(content, "\"") && content[len(content)-1] != "\""[0] {
 		fmt.Print("Did you intend on placing a Quote at the end of your line? (Y/n) ")
@@ -1368,11 +1373,13 @@ func push(args []string){
 		fn([]string{})
 		return
 	}
-
-	if len(args) < 2 {
+	_,indef := definedFunctions[name]
+	if len(args) < 2 && (inb || indef){
 		callStack = append(callStack, stackItem{stptr:0, callerFnName:name})
-	} else {
+	} else if (inb || indef) {
 		callStack = append(callStack, stackItem{stptr:0, callerFnName:name, args: args[1:]})
+	} else {
+		fmt.Println("name error")
 	}
 }
 
@@ -1820,23 +1827,29 @@ func standardOut(args []string){
 	fmt.Println()
 }
 
-
 func reMatch(args []string){
-	var subj, rawRe string
-	if len(args) < 2{
+	var booleName, subj, rawRe string
+	if len(args) < 3{
+		fmt.Print("Boole name = ")
+		sc.Scan()
+		booleName = sc.Text()
+	
 		fmt.Print("subject = ")
 		sc.Scan()
 		subj=sc.Text()
-		fmt.Print("regular expression =")
+		fmt.Print("Go regular expression =")
 		sc.Scan()
 		rawRe = sc.Text()
 	} else {
-		subj,rawRe = args[0], args[1]
+		booleName,subj,rawRe = args[0],args[1], args[2]
 	}
 
 	reg := reCompile(rawRe)
 	if reg.MatchString(subj){
+		boole[booleName] = true
 		emit([]string{"reMatch", subj})
+	} else {
+		boole[booleName] = false
 	}
 }
 
@@ -2476,6 +2489,92 @@ func findPostfixCSV(args []string){
 	C.free(unsafe.Pointer(post))
 }
 
+func setCellCSV(args []string){
+	var tblName, rowId, colId, newData string
+	if len(args) < 4 {
+		fmt.Print("csv table name = ")
+		sc.Scan()
+		tblName =sc.Text()
+		
+		fmt.Print("row number = ")
+		sc.Scan()
+		rowId = sc.Text()
+		
+		fmt.Print("column number = ")
+		sc.Scan()
+		colId = sc.Text()
+		
+		fmt.Print("data = ")
+		sc.Scan()
+		newData = sc.Text()
+	} else {
+		tblName, rowId, colId, newData = args[0],args[1],args[2],args[3]
+	}
+	
+	tbl, intbl := csvTbl[tblName]
+	
+	rowNum,err1 := strconv.Atoi(rowId)
+	colNum,err2 := strconv.Atoi(colId)
+	
+	if err1 != nil || err2 != nil{
+		fmt.Println("error parsing numbers")
+		return
+	}
+	
+	if intbl {
+		if len(tbl.data) > rowNum && rowNum >= 0 {
+			if len(tbl.data[rowNum]) > colNum && colNum >= 0{
+				tbl.data[rowNum][colNum] = newData
+			} else {
+				fmt.Println("invalid column number")
+			}
+		} else {
+			fmt.Println("invalid row number")
+		}
+	} else {
+		fmt.Println("name error")
+	}
+}
+
+
+func saveCSV(args []string){
+	var tblName, fpath string
+	
+	if len(args) < 2{
+	
+		fmt.Print("CSV table name = ")
+		sc.Scan()
+		tblName = sc.Text()
+		
+		fmt.Print("Destination file path = ")
+		sc.Scan()
+		fpath = sc.Text()
+		
+	} else {
+		tblName, fpath = args[0],args[1]
+	}
+	
+	tbl, incsv := csvTbl[tblName]
+	
+	if incsv {
+		file, ferr := os.Create(fpath)
+		defer file.Close()
+		if ferr != nil {
+			fmt.Println(ferr)
+			return
+		}
+		
+		wr := csv.NewWriter(file)
+		
+		for _, row := range tbl.data{
+			wr.Write(row)
+		}
+		
+		wr.Flush()
+	} else {
+		fmt.Println("name error")
+	}
+}
 
 
 //////////////////////////
@@ -2540,15 +2639,24 @@ func webWt(wr http.ResponseWriter, req *http.Request){
 	
 	req.ParseForm()
 	txt := req.FormValue("dir")
+	
+	if len(txt) > 0 && txt[0] != ([]byte("/"))[0]{
+		txt = "/" + txt
+	}
+	
 	ctxt := C.CString(txt)
 
 	got := C.tree_find_str(&worldTree, ctxt)
 	if got != nil{
-		has := (*C.char)(got.data)
+		if got.key != nil {
+			template.Execute(wr, "[web doesn't do subtrees yet]")
+		} else {
+			has := (*C.char)(got.data)
 
-		template.Execute(wr,C.GoString(has))
+			template.Execute(wr,C.GoString(has))
+		}
 	} else {
-		template.Execute(wr, "path error")
+		template.Execute(wr, "[path error]")
 	}
 	
 	C.free(unsafe.Pointer(ctxt)) 
@@ -2639,15 +2747,14 @@ func main(){
 	
 	builtIns["findPrefixCSV"]=findPrefixCSV
 	builtIns["findPostfixCSV"]=findPostfixCSV
-	//builtIns["setCellCSV"]=setCellCSV
-	//builtIns["setCellDirectCSV"] = setCellDirectCSV
+	builtIns["setCellCSV"]=setCellCSV
+	builtIns["saveCSV"]=saveCSV
 	//builtIns["filterByBlacklistCSV"]=filterByBlacklist
 	//builtIns["newList"] = newList
 	//builtIns["byIndexList"]=byIndexEmitList
 	//builtIns["applyToList"]=applyToList
 	//builtIns["findHeaderCSV"]=findHeaderCSV
 	//builtIns["cropCSV"]=cropCSV
-	//builtIns["saveCSV"]=saveCSV
 	//builtIns["newFile"]=newFile
 	//builtIns["readLine"]=readline
 	//builtIns["closeFile"]=closeFile
