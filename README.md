@@ -9,6 +9,8 @@ May in fact leak memory somewhere. Have fun building up memory. tron.exe should 
 
 simply go build tron.go
 
+A modern version of Go might be needed. I build this myself with 1.24.2
+
 If you need a C compiler that works with windows you can install gcc provided by strawberry perl (https://strawberryperl.com/)
 
 project uses https://github.com/semitrivial/csv_parser/tree/master for csv parsing
