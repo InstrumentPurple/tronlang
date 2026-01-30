@@ -22,14 +22,14 @@ arguments are CSV
 function names must be alpha-numeric
 
 set rootbeer variable j to 0
-
+```
 !setMath:"j","0.0"
-
+```
 
 expressions are reverse polish notation
-
+```
 !setMath:"m","j 1 +"
-
+```
 
 !setBoole:"now","0"
 
