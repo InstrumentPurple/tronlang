@@ -105,3 +105,5 @@ add a function from disk
 !test2:
 ```
 
+confused about what arguments go to which builtIns? Simply call the builtin without arguments and you will start the builtIn's options in the order they are passed.
+
