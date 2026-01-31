@@ -3,11 +3,16 @@ Tronlang interpreter written in Golang and C
 
 CURRENTLY EXPERIMENTAL
 
-initial created to facilitate access to datastructures. Includes a general tree call the world tree because it's gobal. Hash tables are supported through short tables (which has limited capacity.). A global graph is implemented as a digraph and can find shortest paths with the Belman-ford algorithm
+initial created to facilitate access to datastructures. Includes a general tree call the world tree because it's gobal. Hash tables are supported through short tables (which have limited capacity.). A global graph is implemented as a digraph and can find shortest paths with the Belman-ford algorithm
 
 May in fact leak memory somewhere. Have fun building up memory. tron.exe should be FAT
 
-simply go build tron.go
+simply build with this command:
+```
+go build tron.go
+```
+
+Tronlang uses CGo which means you need a C compiler. What simply worked for me was gcc. I don't know about other compilers but you'd probably have to configure something to get this to compile with anything else. 
 
 A modern version of Go might be needed. I build this myself with 1.24.2
 
