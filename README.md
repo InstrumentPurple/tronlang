@@ -101,6 +101,7 @@ do a source loop
 add a function from disk
 
 ```
-!loadFn:
+!loadFn:./function.tron,test2
+!test2:
 ```
 
