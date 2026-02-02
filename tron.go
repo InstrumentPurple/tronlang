@@ -141,6 +141,16 @@ type csvEntity struct {
 	data [][]string
 }
 
+type Prompt struct {
+	Msg string
+	Options []Option
+}
+
+type Option struct {
+	Opt string
+	Next string
+}
+
 
 func (vrt *gVertex) reset(){
 	vrt.dist = INFINITY
@@ -280,7 +290,7 @@ func (g *Graph) saveEdges(fpath string){
 	wr.Flush()
 }
 
-const(VERSION="v0.73.2 (CSV workshop update v0.74 rollout progress)")
+const(VERSION="v0.73.4 (CSV workshop update v0.8 rollout progress)")
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
 
 var builtIns  map[string](func ([]string) ) = map[string](func ([]string) ){}
@@ -300,7 +310,7 @@ var csvTbl map[string]*csvEntity = map[string]*csvEntity{}
 
 var observerTbl map[string]([]string) = map[string]([]string){} // func id to slice of strings (in strTbl)
 
-var definedFunctions map[string]([]string) = map[string]([]string){"test":[]string{"!setMath:\"j\",\"j 1 +\"" ,"!setBoole:\"now\",\"j 10 gt\"","!ifstop:\"now\"","!showRb:","!test:"}}
+var definedFunctions map[string]([]string) = map[string]([]string){"test":[]string{"!setMath:j,j 1 +","!setBoole:now,j 10 gt","!ifstop:now","!showRb:","!test:"}}
 var definedFunKvargs map[string]kvargPair = map[string]kvargPair{}
 
 
@@ -906,10 +916,10 @@ func insertWt(args []string){
 	var path, line string
 
 	if len(args) < 2{
-		fmt.Print("path=")
+		fmt.Print("path (unix-stye) = ")
 		sc.Scan()
 		path = sc.Text()
-		fmt.Print("data=")
+		fmt.Print("data = ")
 		sc.Scan()
 		line = sc.Text()
 	} else if(len(args) >= 2) {
@@ -2538,20 +2548,19 @@ func setCellCSV(args []string){
 
 
 func saveCSV(args []string){
-	var tblName, fpath string
+	var fpath, tblName  string
 	
 	if len(args) < 2{
-	
-		fmt.Print("CSV table name = ")
-		sc.Scan()
-		tblName = sc.Text()
-		
 		fmt.Print("Destination file path = ")
 		sc.Scan()
 		fpath = sc.Text()
 		
+		fmt.Print("CSV table name = ")
+		sc.Scan()
+		tblName = sc.Text()
+		
 	} else {
-		tblName, fpath = args[0],args[1]
+		fpath, tblName = args[0],args[1]
 	}
 	
 	tbl, incsv := csvTbl[tblName]
@@ -2566,6 +2575,10 @@ func saveCSV(args []string){
 		
 		wr := csv.NewWriter(file)
 		
+		if tbl.hasHead{
+			wr.Write(tbl.head)
+		}
+		
 		for _, row := range tbl.data{
 			wr.Write(row)
 		}
@@ -2575,6 +2588,133 @@ func saveCSV(args []string){
 		fmt.Println("name error")
 	}
 }
+
+//I'll probably find something wrong with this later
+func cropCSV(args []string){
+	var srcTableName, destTableName, tlX, tlY, brX, brY string
+	if len(args) < 5{
+		fmt.Print("source table name = ")
+		sc.Scan()
+		srcTableName = sc.Text()
+		
+		fmt.Print("destination table name (smashes table if already exists) = ")
+		sc.Scan()
+		destTableName = sc.Text()		
+		
+		fmt.Println("Cordinates are like arrays so they start at the top left and continue right for x and down for y.")
+		
+		fmt.Print("top left x = ")
+		sc.Scan()
+		tlX = sc.Text()
+
+		fmt.Print("top left y = ")
+		sc.Scan()
+		tlY = sc.Text()
+		
+		fmt.Print("bottom right x = ")
+		sc.Scan()
+		brX = sc.Text()
+
+		fmt.Print("bottom right y = ")
+		sc.Scan()
+		brY = sc.Text()
+	} else {
+		srcTableName, destTableName, tlX, tlY, brX, brY = args[0],args[1],args[2],args[3],args[4],args[5]
+	}
+	
+	topLeftX, err1 := strconv.Atoi(tlX)
+	topLeftY, err2 := strconv.Atoi(tlY)
+	bottomRightX, err3 := strconv.Atoi(brX)
+	bottomRightY, err4 := strconv.Atoi(brY)
+	
+	if bottomRightX < topLeftX{
+		fmt.Println("bottom right x must be less then top left x")
+		return
+	}
+	
+	if bottomRightY < topLeftY{
+		fmt.Println("bottom right y must be less then top left y")
+		return
+	}
+	
+	
+	if err1 != nil || err2  != nil || err3 != nil  || err4 != nil  {
+		fmt.Println("Error parsing number")
+		return
+	}
+	
+	srcTbl, hasSrcTbl := csvTbl[srcTableName]
+	
+	if !hasSrcTbl {
+		fmt.Println("source table does not exist")
+		return
+	}
+
+	destTbl := &csvEntity{data:make([][]string,0)}
+	deltaX := bottomRightX - topLeftX
+	deltaY := bottomRightY - topLeftY
+		
+	var L int = 0
+	for L <= deltaY{
+		destTbl.data = append(destTbl.data, make([]string,deltaX+1))
+		L++
+	}
+		
+	csvTbl[destTableName] = destTbl
+	
+	//todo copy header
+	var i,j int = topLeftX,topLeftY
+	var di, dj int
+	
+	for j < len(srcTbl.data) && j <= bottomRightY && dj < len(destTbl.data){
+		for i < len(srcTbl.data[j]) && i <= bottomRightX && di < len(destTbl.data[dj]){
+			destTbl.data[dj][di] = srcTbl.data[j][i]
+			
+			di++
+			i++
+		}
+		di=0
+		i=topLeftX
+		dj++
+		j++
+	}
+}
+
+
+func pristineNums(args []string){
+	rootBeer = map[string]float64{
+		"e":2.7182818284590452353602874713526624977572470936999596,
+		"pi":3.1415926535897932384626433832795028841971693993751058,
+	}
+}
+
+
+func showCSV(args []string){
+	var tableName string
+	if len(args) < 1 {
+		fmt.Print("CSV table name = ")
+		sc.Scan()
+		tableName=sc.Text()
+	} else {
+		tableName=args[0]
+	}
+	
+	gotTbl, incsv := csvTbl[tableName]
+	if !incsv{
+		fmt.Println("name error")
+		return
+	}
+	
+	if gotTbl.hasHead{
+		fmt.Println(pourSlice(gotTbl.head))
+		fmt.Println()
+	}
+	
+	for index, row := range gotTbl.data{
+		fmt.Println(index, ":", pourSlice(row))
+	}
+}
+
 
 
 //////////////////////////
@@ -2649,7 +2789,7 @@ func webWt(wr http.ResponseWriter, req *http.Request){
 	got := C.tree_find_str(&worldTree, ctxt)
 	if got != nil{
 		if got.key != nil {
-			template.Execute(wr, "[web doesn't do subtrees yet]")
+			template.Execute(wr, "[web doesn't do subtrees yet]") // TODO
 		} else {
 			has := (*C.char)(got.data)
 
@@ -2661,6 +2801,168 @@ func webWt(wr http.ResponseWriter, req *http.Request){
 	
 	C.free(unsafe.Pointer(ctxt)) 
 }
+
+
+func dialog(rw http.ResponseWriter,req *http.Request){
+	req.ParseForm()
+	
+	selected := req.FormValue("ptid")
+	
+	if selected == "" {
+		selected = "welcome"
+	}
+	
+	endings := map[string]Prompt{"placer":Prompt{Msg:"You've reached the end of where I wrote. Thank you for tuning in. Until next update. The land of blanklandia shall ever repeat itself. Why don't you try other dialog options?"},
+								"aint_my_hoe":Prompt{Msg:"OOOOh so you gonna play me like that! Well how about some kungfu! [YOU DIE] "},
+								}
+	
+	dialogTree := map[string]Prompt{ /* the old fashioned kind of prompt */
+			"welcome":{
+			Msg: "Welcome to the land of blanklandia where we frolic we glee!",
+			Options:[]Option{
+					{Opt:"I hate this.",Next:"prospects"},
+					{Opt:"I have a better outtake on life. Be chearful and gleaming seas.",Next:"prospects"},
+				},
+			},
+			
+			"prospects":{
+			Msg: "well we didn't ask for this but we have to persevere through doubtless eons no doubt.",
+			Options:[]Option{
+					{Opt:"I hate this.",Next:"prospects"},
+					{Opt:"See Samsun the wonderer",Next:"see_samsun"},
+				},
+			},
+			
+				"see_samsun" : {
+				Msg:"WWWEEEEEHHHHOOOOOOOO! There be shadows amongst us! Flying ravens scatter the sky! The prophecy!",
+				Options:[]Option{
+					{Opt:"Your just one of those philosophical quacks!",Next:"quack"},
+					{Opt:"Oh... you've been seing ravens again?",Next:"seing_ravens"},
+					{Opt:"You know you ain't my hoe!",Next:"aint_my_hoe"},
+					
+				},
+				},
+				
+					"quack":{
+					Msg:"You're too young to know a philosopher from a quack! I've been wondering all day. just going everywhere and thinking everything. I think I'm on to a good idea!",
+					Options:[]Option{
+						{Opt:"Your new idea? tell me more!",Next:"idea"},
+						{Opt:"I don't want to hear anymore of your gibberish.",Next:"no_more"},
+						{Opt:"Poor fellow. Probably been a while since you've had a smoke.",Next:"smoke"},
+						
+					},
+					},
+					
+					
+						"idea":{
+						Msg:"You see first we get together all of the world's books and then we get a nuclear reactor and tanks of liquid nitrogen and the worlds formost supper computer. You see the nuclear reactor is for the supercomputer's power source and the liquid nitrogen is for when we overclock the super computer. We get the super computer to read all the books then it can tell us the answers of the universe and every thing!",
+							Options:[]Option{
+							{Opt:"Your just a crazy old man.",Next:"the_story_continues"},
+							{Opt:"Wow maybe this might just work!",Next:"might_work"},
+						},
+						},
+						
+							"might_work":{
+								Msg:"You know I been feeling something eery. I thinks it's those elves.",
+								Options:[]Option{
+									{Opt:"I see.",Next:"the_story_continues"},
+									{Opt:"No such thing.",Next:"the_story_continues"},
+								},
+								},
+						
+						"no_more":{
+						Msg:"A fellow like you should gleaming seas and perishing pearls. Worlds of wonder away away away!",
+							Options:[]Option{
+							{Opt:"Respect",Next:"the_story_continues"},
+							
+						},
+						},
+						
+						"smoke":{
+						Msg:"You know my wife divorced me. I was thinking I was going to be with this person for the rest of my life and now that's all crumbling away.",
+							Options:[]Option{
+							{Opt:"Watcha need boyo is some enchantments and spells! Maybe perhaps some princess locked away in a tower or some PILLS",Next:"the_story_continues"},
+						},
+						},
+					
+					
+					"seing_ravens":{
+					Msg:"It means prophecy I tell you! Two kings will die! Gods will walk the earth again! Dinosaur's and Betelgeuse!",
+					Options:[]Option{
+						{Opt:"All That star stuff is just talk. Don't get upset.",Next:"the_story_continues"},
+						{Opt:"That doesn't belong to the dinosuars!",Next:"dino_argu"},
+					},
+					},
+					
+						"dino_argu":{
+						
+						Msg:"The dinosuars have been ceasing our land and bothering our women. It's not their's but they walk around like they own the place. The king of blanklandia Isn't doing anything about it!",
+						Options:[]Option{
+							{Opt:"whelp nothing you can do",Next:"the_story_continues"},
+							
+						},
+						},
+			/* all options lead here */
+			"the_story_continues":{
+					Msg:"Anyway. The wizards of Callenber are calling for a Winter meeting. I might go just to see what they think of the current state of things. Would you like to go along?",
+					Options:[]Option{
+						{Opt:"Lets go!",Next:"adventure_one"},
+						{Opt:"I'm too busy and I've already been traveling all this year. Maybe next time.",Next:"placer"},
+					},
+					},
+					
+				// side quest one of two from the_story_continues
+				"adventure_one":{
+						Msg:"Callenber isn't too far from here. We should make it there in one day and one night.",
+						Options:[]Option{
+							{Opt:"Why is Callenber important?",Next:"important"},
+							{Opt:"Why do they meet in Winter?",Next:"why_winter"},
+						},
+						},
+						
+					"important":{
+						Msg:"Callenber is the center of trade and the college system. The wizards like it for those two reasons being wizards and needing strange foreign ingredients and the best colleges.",
+						Options:[]Option{
+							{Opt:"This is all very intersting but what will we eat on our trip?",Next:"placer"},
+											
+						},
+						},
+					
+					"why_winter":{
+						Msg:"Sipnee day! Who knows what reasons they might have! Maybe it's because the air pressure or maybe because the snow is the right magical color.",
+						Options:[]Option{
+							{Opt:"okay",Next:"placer"},
+							
+						},
+						},
+					
+	/*
+		"":{
+				Msg:"",
+				Options:[]Option{
+					{Opt:"",Next:""},
+					
+				},
+				},
+	*/
+	
+	
+	}
+	
+	template, _ := template.ParseFiles("./dialog.html.tmpl")
+	
+	p, inend := endings[selected]
+	
+	if inend {
+		template.Execute(rw,p)
+	} else {
+		template.Execute(rw, dialogTree[selected])
+	}
+}
+
+
+
+
 
 
 
@@ -2675,6 +2977,7 @@ func main(){
 	http.HandleFunc("/ms2236__c01__f02_.jpg", backgroundImg)
 	http.HandleFunc("/shortResults", webShortResults)
 	http.HandleFunc("/wt", webWt)
+	http.HandleFunc("/dialog", dialog)
 	
 	go http.ListenAndServe(serverAddr, http.DefaultServeMux)
 	fmt.Println("serving http at " + serverAddr)
@@ -2729,7 +3032,7 @@ func main(){
 	builtIns["loadCSV"] = loadCSVFile
 	builtIns["csvsql"] = csvsql // under construction. Just doing the select statement first
 	builtIns["sortByColCSV"] = sortByCol
-	builtIns["bins"] = bins //assumes the column is already sorted
+	builtIns["bins"] = bins //assumes the column is already sorted with sortByColCSV
 	builtIns["showHeadCSV"] = showHeadCSV
 	builtIns["findAllExactCSV"] = findAllExactCSV
 	//latest and not very tested builtIns
@@ -2745,24 +3048,35 @@ func main(){
 	builtIns["null"]=nullFn
 	builtIns["nil"]=nullFn
 	
+	builtIns["pristineRb"]=pristineNums // you nuked but you want e and pi back
+	
+	//these will be subject to change till v0.8
 	builtIns["findPrefixCSV"]=findPrefixCSV
 	builtIns["findPostfixCSV"]=findPostfixCSV
 	builtIns["setCellCSV"]=setCellCSV
-	builtIns["saveCSV"]=saveCSV
+	builtIns["saveCSV"]=saveCSV // changed order of arguments to match loadCSV
+	builtIns["cropCSV"]=cropCSV
+	builtIns["showCSV"]=showCSV
+	//builtIns["sumColCSV"]=sumColCSV
+	//builtIns["getCellCSV"] = getCellCSV
 	//builtIns["filterByBlacklistCSV"]=filterByBlacklist
 	//builtIns["newList"] = newList
 	//builtIns["byIndexList"]=byIndexEmitList
 	//builtIns["applyToList"]=applyToList
-	//builtIns["findHeaderCSV"]=findHeaderCSV
-	//builtIns["cropCSV"]=cropCSV
 	//builtIns["newFile"]=newFile
 	//builtIns["readLine"]=readline
 	//builtIns["closeFile"]=closeFile
 	//builtIns["writeLine"]=writeLine
-	//builtIns["writeCSV"]=writeCSV
 	//builtIns["rowToList"]=rowToList
-	//modify emit to append to list
+	//builtIns["addRowFromListCSV"]=addRowFromListCSV
+	//builtIns["addHeaderCSV"]=addHeaderCSV
+	//TODO: modify emit to append to list
 	
+	
+	/* doesn't do anyting systematic or scary so you can
+	* change it without worry just
+	* some place to put all your most used stuff. Like
+	* your might want to load up the world graph or some functions of your's. */
 	if fileExists("./init.tron"){
 		loadBlock([]string{"./init.tron","init"})
 		parseAndCall("!init:",0)
