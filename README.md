@@ -114,7 +114,7 @@ confused about what arguments go to which builtIns? Simply call the builtin with
 
 The following are all the availible reverse polish operators within rootbeer expressions like you can do with math or setMath and they all require two arguments. With the trig functions the operands are divided before they are passed to the trig function.
 
-\\
+/
 
 \+
 
