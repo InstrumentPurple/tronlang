@@ -139,6 +139,12 @@ type csvEntity struct {
 	data    [][]string
 }
 
+type WebCSVEntity struct{
+	Head    []string
+	HasHead bool
+	Data    [][]string
+}
+
 type Option struct {
 	Opt  string
 	Next string
@@ -285,7 +291,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.73.5 (CSV workshop update v0.8 rollout progress)"
+	VERSION = "v0.74 (CSV workshop update v0.8 rollout progress)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -341,6 +347,8 @@ var transformationFns = map[string](func(map[string]string)){
 }
 
 var fileCacheWeb = map[string]([]byte){}
+
+var suppressSrcLoopsOutput = false
 
 var ONE *big.Int = big.NewInt(1)
 var ZERO *big.Int = big.NewInt(0)
@@ -655,7 +663,9 @@ func doSourceLoop(content string) bool {
 						args = fsc.Text()
 
 						cmd := callPart + ":" + args
-						fmt.Println(cmd)
+						if !suppressSrcLoopsOutput{
+							fmt.Println(cmd)
+						}
 						parseAndCall(cmd, 0)
 					}
 
@@ -821,17 +831,12 @@ startLoop:
 func parseAndCall(content string, useless int64) bool {
 	//TODO: remove whitespace from begining of content
 
-	if strings.Contains(content, "\"") && content[len(content)-1] != "\""[0] {
-		fmt.Print("Did you intend on placing a Quote at the end of your line? (Y/n) ")
-		sc.Scan()
-		if sc.Text() == "Y" {
-			content = content + "\""
-		} else {
-			fmt.Println("verry well then")
-		}
-	}
-
 	if re["validCall"].MatchString(content) {
+		if strings.Count(content,"\"") % 2 == 1{
+			fmt.Println("Odd number of quotes found.")
+			return false
+		}
+
 		got := strings.Replace(content, ":", "[seperator]", 1) //needs to be unique
 
 		sep := strings.Split(got, "[seperator]")
@@ -853,7 +858,9 @@ func parseAndCall(content string, useless int64) bool {
 					args = fsc.Text()
 
 					cmd := callPart + ":" + args
-					fmt.Println(cmd)
+					if !suppressSrcLoopsOutput{
+						fmt.Println(cmd)
+					}
 					parseAndCall(cmd, 0)
 				}
 
@@ -1610,6 +1617,7 @@ func nuke(args []string) {
 	definedFunKvargs = map[string]kvargPair{}
 	csvTbl = map[string]*csvEntity{}
 	shortTbls = map[string]*hashTbl{}
+	suppressSrcLoopsOutput = false
 
 	runtime.GC()
 }
@@ -2318,6 +2326,15 @@ func quitFn(args []string) {
 	os.Exit(0)
 }
 
+func normalCSVEtoWebCSVE(table *csvEntity)*WebCSVEntity{
+return &WebCSVEntity{
+	Head: table.head,
+	HasHead: table.hasHead,
+	Data: table.data,
+}
+}
+
+
 func pourSlice(subj []string) string {
 	end := ""
 	for _, val := range subj {
@@ -2362,6 +2379,16 @@ func getKeysFromShortTbls() []string {
 	}
 
 	return total
+}
+
+func getKeysFromCSVTbls() []string{
+	total := make([]string, 0)
+	for key := range maps.Keys(csvTbl) {
+		total = append(total, key)
+	}
+
+	return total
+
 }
 
 func fileExists(filename string) bool {
@@ -2729,6 +2756,36 @@ func getCellCSV(args []string) {
 	}
 }
 
+
+func help(args []string){
+	for fnName,_ := range builtIns{
+		fmt.Println(fnName)
+	}
+}
+
+func silenceSrc(args []string){
+	suppressSrcLoopsOutput = true
+
+}
+
+func addHeaderCSV(args []string){
+	var tblName string
+	if len(args) < 2 {
+		fmt.Print("supply your csv table name and your headers after.")
+		return
+	} else {
+		tblName = args[0]
+	}
+
+	gotTbl, incsv := csvTbl[tblName]
+
+	if incsv {
+		gotTbl.hasHead = true
+		gotTbl.head = args[1:]
+	}
+}
+
+
 //////////////////////////
 // http web app functions
 
@@ -2737,6 +2794,7 @@ type varWrapper struct {
 	Rbs     map[string]float64
 	Booles  map[string]bool
 	ShtTbls []string
+	CsvKeys []string
 }
 
 func frontpage(writer http.ResponseWriter, req *http.Request) {
@@ -2745,6 +2803,7 @@ func frontpage(writer http.ResponseWriter, req *http.Request) {
 		Rbs:     rootBeer,
 		Booles:  boole,
 		ShtTbls: getKeysFromShortTbls(),
+		CsvKeys: getKeysFromCSVTbls(),
 	}
 
 	templ, _ := template.ParseFiles("./front.html.tmpl")
@@ -2849,36 +2908,36 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 			},
 		},
 
-		"quack": {
-			Msg: "You're too young to know a philosopher from a quack! I've been wondering all day. just going everywhere and thinking everything. I think I'm on to a good idea!",
-			Options: []Option{
-				{Opt: "Your new idea? tell me more!", Next: "idea"},
-				{Opt: "I don't want to hear anymore of your gibberish.", Next: "no_more"},
-				{Opt: "Poor fellow. Probably been a while since you've had a smoke.", Next: "smoke"},
+			"quack": {
+				Msg: "You're too young to know a philosopher from a quack! I've been wondering all day. just going everywhere and thinking everything. I think I'm on to a good idea!",
+				Options: []Option{
+					{Opt: "Your new idea? tell me more!", Next: "idea"},
+					{Opt: "I don't want to hear anymore of your gibberish.", Next: "no_more"},
+					{Opt: "Poor fellow. Probably been a while since you've had a smoke.", Next: "smoke"},
+				},
 			},
-		},
 
-		"idea": {
-			Msg: "You see first we get together all of the world's books and then we get a nuclear reactor and tanks of liquid nitrogen and the worlds formost supper computer. You see the nuclear reactor is for the supercomputer's power source and the liquid nitrogen is for when we overclock the super computer. We get the super computer to read all the books then it can tell us the answers of the universe and every thing!",
-			Options: []Option{
-				{Opt: "Your just a crazy old man.", Next: "the_story_continues"},
-				{Opt: "Wow maybe this might just work!", Next: "might_work"},
-			},
-		},
+				"idea": {
+					Msg: "You see first we get together all of the world's books and then we get a nuclear reactor and tanks of liquid nitrogen and the worlds formost supper computer. You see the nuclear reactor is for the supercomputer's power source and the liquid nitrogen is for when we overclock the super computer. We get the super computer to read all the books then it can tell us the answers of the universe and every thing!",
+					Options: []Option{
+						{Opt: "Your just a crazy old man.", Next: "the_story_continues"},
+						{Opt: "Wow maybe this might just work!", Next: "might_work"},
+					},
+				},
 
-		"might_work": {
-			Msg: "You know I been feeling something eery. I thinks it's those elves.",
-			Options: []Option{
-				{Opt: "I see.", Next: "the_story_continues"},
-				{Opt: "No such thing.", Next: "the_story_continues"},
-			},
-		},
+					"might_work": {
+						Msg: "You know I been feeling something eery. I thinks it's those elves.",
+						Options: []Option{
+							{Opt: "I see.", Next: "the_story_continues"},
+							{Opt: "No such thing.", Next: "the_story_continues"},
+						},
+					},
 
-		"no_more": {
-			Msg: "A fellow like you should gleaming seas and perishing pearls. Worlds of wonder away away away!",
-			Options: []Option{
-				{Opt: "Respect", Next: "the_story_continues"},
-			},
+				"no_more": {
+					Msg: "A fellow like you should gleaming seas and perishing pearls. Worlds of wonder away away away!",
+					Options: []Option{
+						{Opt: "Respect", Next: "the_story_continues"},
+					},
 		},
 
 		"smoke": {
@@ -2896,21 +2955,29 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 			},
 		},
 
-		"dino_argu": {
+			"dino_argu": {
 
-			Msg: "The dinosuars have been ceasing our land and bothering our women. It's not their's but they walk around like they own the place. The king of blanklandia Isn't doing anything about it!",
-			Options: []Option{
-				{Opt: "whelp nothing you can do", Next: "the_story_continues"},
+				Msg: "The dinosuars have been ceasing our land and bothering our women. It's not their's but they walk around like they own the place. The king of blanklandia Isn't doing anything about it!",
+				Options: []Option{
+					{Opt: "whelp nothing you can do", Next: "the_story_continues"},
+				},
 			},
-		},
 		/* all options lead here */
 		"the_story_continues": {
 			Msg: "Anyway. The wizards of Callenber are calling for a Winter meeting. I might go just to see what they think of the current state of things. Would you like to go along?",
 			Options: []Option{
 				{Opt: "Lets go!", Next: "adventure_one"},
-				{Opt: "I'm too busy and I've already been traveling all this year. Maybe next time.", Next: "placer"},
+				{Opt: "I'm too busy and I've already been traveling all this year. Maybe next time.", Next: "become_hunter_gatherer"},
 			},
 		},
+
+			"become_hunter_gatherer":{
+				Msg:"'Fine we can just stick around here and pick some berries. What a beutiful day!' The sun was bright but it was slightly chill in the forest clearing.",
+				Options:[]Option{
+					{Opt:"Let's hunt elk!",Next:"placer"},
+
+				},
+			},
 
 		// side quest one of two from the_story_continues
 		"adventure_one": {
@@ -2924,16 +2991,66 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 		"important": {
 			Msg: "Callenber is the center of trade and the college system. The wizards like it for those two reasons being wizards and needing strange foreign ingredients and the best colleges.",
 			Options: []Option{
-				{Opt: "This is all very intersting but what will we eat on our trip?", Next: "placer"},
+				{Opt: "This is all very interesting but what will we eat on our trip?", Next: "eat"},
+				{Opt: "Who is the wizards' leader?", Next: "wiz_leader"},
 			},
 		},
 
 		"why_winter": {
 			Msg: "Sipnee day! Who knows what reasons they might have! Maybe it's because the air pressure or maybe because the snow is the right magical color.",
 			Options: []Option{
-				{Opt: "okay", Next: "placer"},
+				{Opt: "okay", Next: "adventure_one"},
 			},
 		},
+
+			"eat": {
+				Msg: "Here in Blanklandia we eat the staples. Don't expect a 5 star meal.",
+				Options: []Option{
+					{Opt: "okay", Next: "important"},
+				},
+			},
+
+		"wiz_leader": {
+			Msg: "Their leader's name is Bradic and he is quite the heavy man. He became the leader 2 years ago when Partil died of a lonely heart.",
+			Options: []Option{
+				{Opt: "Who was the more powerful wizard? Partil or Bradic?", Next: "more_on_leaders"},
+				{Opt: "A lonely heart? What a tragedy.", Next: "tragedy"},
+				{Opt: "Thicc boy???", Next: "thicc"},
+			},
+		},
+
+			"thicc":{
+				Msg:"He wasn't just thicc he had spirit and determination about eating. Soaring sky lines and ample feasts!",
+				Options:[]Option{
+					{Opt:"okay",Next:"wiz_leader"},
+
+				},
+			},
+
+				"more_on_leaders": {
+					Msg: "Partil was getting old but when he was in his 50s he was known to be the greatest of all wiards. Bradic is more charismatic and his ideas are actually making those wizards money for their services now that he is in control.",
+					Options: []Option{
+						{Opt: "okay", Next: "wiz_leader"},
+					},
+				},
+
+				"tragedy":{
+					Msg:"That was Partil's only flaw. He was a great man.",
+					Options:[]Option{
+						{Opt:"That's good. Thank you.",Next:"placer"},
+						{Opt:"That got me thinking about something. If Partil was such a great wizard then why couldn't he find a date to sooth his broken wing.",Next:"poor_partil"},
+					},
+				},
+
+
+					"poor_partil":{
+						Msg:"He loved dates with all their fiber and nutritional value but that's beside the point, youngin'. We should start off on our journey. Now don't worry we'll get you some coleslaw from Georgia and a coke. First let me but this big dip in.",
+						Options:[]Option{
+							{Opt:"That coleslaw is all the way from goegia? it's probably slimy by now.",Next:"placer"},
+
+						},
+					},
+
 
 		/*
 			"":{
@@ -2958,6 +3075,24 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func webCSVView(rw http.ResponseWriter, req *http.Request){
+	req.ParseForm()
+
+	tableName := req.FormValue("table")
+
+	tbl, intbl := csvTbl[tableName]
+
+	webCsv := normalCSVEtoWebCSVE(tbl)
+
+	if intbl{
+		temp, _ := template.ParseFiles("./csv_view.html.tmpl")
+		temp.Execute(rw,webCsv)
+	} else {
+		rw.Write([]byte("<h1>error could not find table</h1>"))
+	}
+}
+
+
 func main() {
 	fmt.Println("Tronlang " + VERSION)
 
@@ -2973,6 +3108,7 @@ func main() {
 	http.HandleFunc("/shortResults", webShortResults)
 	http.HandleFunc("/wt", webWt)
 	http.HandleFunc("/dialog", dialog)
+	http.HandleFunc("/csv_view", webCSVView)
 
 	go http.ListenAndServe(serverAddr, http.DefaultServeMux)
 	fmt.Println("serving http at " + serverAddr)
@@ -3043,6 +3179,8 @@ func main() {
 	builtIns["nil"] = nullFn
 
 	builtIns["pristineRb"] = pristineNums // you nuked but you want e and pi back
+	builtIns["help"]=help
+	builtIns["silenceSrc"]=silenceSrc
 
 	//these will be subject to change till v0.8
 	builtIns["findPrefixCSV"] = findPrefixCSV
@@ -3052,6 +3190,7 @@ func main() {
 	builtIns["cropCSV"] = cropCSV
 	builtIns["showCSV"] = showCSV
 	builtIns["getCellCSV"] = getCellCSV
+	builtIns["addHeaderCSV"]=addHeaderCSV
 	//builtIns["sumColCSV"]=sumColCSV
 	//builtIns["filterByBlacklistCSV"]=filterByBlacklist
 	//builtIns["newList"] = newList
@@ -3063,7 +3202,7 @@ func main() {
 	//builtIns["writeLine"]=writeLine
 	//builtIns["rowToList"]=rowToList
 	//builtIns["addRowFromListCSV"]=addRowFromListCSV
-	//builtIns["addHeaderCSV"]=addHeaderCSV
+
 	//TODO: modify emit to append to list
 
 	/* doesn't do anyting systematic or scary so you can
