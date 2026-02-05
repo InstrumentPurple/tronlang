@@ -47,6 +47,18 @@
 (This should be a unix style path)<br/><input name="dir" value=""></input><button type="submit">submit</button>
 </form>
 
+<hr/>
+
+<h2>CSV Table View</h2>
+<form action="/csv_view" method="GET">
+    <select name="table">
+    {{range $ind, $elm := .CsvKeys}}
+    <option value="{{$elm}}">{{$elm}}
+    </option>
+    {{end}}
+    </select>
+    <button type="submit">submit</button>
+</form>
 
 </div>
 <div id="footer">
