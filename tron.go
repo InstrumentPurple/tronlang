@@ -155,6 +155,44 @@ type Prompt struct {
 	Options []Option
 }
 
+type ListNode struct {
+	Next *ListNode
+	Data *string
+}
+
+type List struct {
+	Head *ListNode
+	Tail **ListNode
+	Count int64
+}
+
+func (subject *List) Init(){
+	subject.Head = nil
+	subject.Tail = &(subject.Head)
+	subject.Count=int64(0)
+}
+
+func (subject *List) Insert(dataPtr *string){
+	newNode := &ListNode{Data: dataPtr}
+	*(subject.Tail) = newNode
+	subject.Tail = &(newNode.Next)
+	subject.Count++
+}
+
+func ListPrint_(cur *ListNode){
+	if cur != nil{
+		fmt.Println(*(cur.Data))
+		ListPrint_(cur.Next)
+	}
+}
+
+func (subject *List)ListPrint(){
+	if subject != nil{
+		ListPrint_(subject.Head)
+	}
+}
+
+
 func (vrt *gVertex) reset() {
 	vrt.dist = INFINITY
 	vrt.prev = nil
@@ -291,7 +329,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.74 (CSV workshop update v0.8 rollout progress)"
+	VERSION = "v0.75 (CSV workshop update v0.8 rollout progress)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -317,6 +355,8 @@ var definedFunctions map[string]([]string) = map[string]([]string){"test": []str
 var definedFunKvargs map[string]kvargPair = map[string]kvargPair{}
 
 var xmlTbl map[string](map[string]*xmlData) = map[string](map[string]*xmlData){}
+
+var listTbl = map[string]*List{}
 
 func reCompile(s string) *regexp.Regexp {
 	rc, err := regexp.Compile(s)
@@ -356,6 +396,9 @@ var ZERO *big.Int = big.NewInt(0)
 // factorial
 func fact_cancel(at, n *big.Int) *big.Int {
 	result := big.NewInt(1.0)
+	if n.Cmp(at) == -1{
+		return ZERO
+	}
 
 	for n.Cmp(at) != 0 {
 		result.Mul(result, n)
@@ -424,8 +467,10 @@ func evaluateRPN(expression string) (float64, error) {
 				r := big.NewInt(int64(operand2))
 				if n.Cmp(r) == 0 { //this is a hack to fix broken bicoef
 					result = 1.0
-				} else {
+				} else if(int64(operand1) >= int64(operand2)) {
 					result, _ = (bicoef(n, r)).Float64()
+				} else {
+					return 0, fmt.Errorf("n must be greater than or equal too: %s", token)
 				}
 			case "/":
 				if operand2 == 0.0 {
@@ -1617,6 +1662,7 @@ func nuke(args []string) {
 	definedFunKvargs = map[string]kvargPair{}
 	csvTbl = map[string]*csvEntity{}
 	shortTbls = map[string]*hashTbl{}
+	listTbl = map[string]*List{}
 	suppressSrcLoopsOutput = false
 
 	runtime.GC()
@@ -2786,6 +2832,201 @@ func addHeaderCSV(args []string){
 }
 
 
+
+func insertToList(args []string){
+	var tblName,datum string
+	if len(args) < 2{
+		fmt.Print("List table name = ")
+		sc.Scan()
+		tblName = sc.Text()
+
+		fmt.Print("datum = ")
+		sc.Scan()
+		datum = sc.Text()
+		args = append(args, "gets erased")
+		args = append(args, datum)
+	} else {
+		tblName = args[0]
+	}
+
+
+	args = args[1:]
+
+
+	tbl, intbl := listTbl[tblName]
+
+	if !intbl{
+		fmt.Println("name error")
+		return
+	}
+
+	for _, strToInsert := range args{
+		alloced := new(string)
+		*alloced = strToInsert
+		tbl.Insert(alloced)
+	}
+}
+
+func newList(args []string){
+	var listName string
+	if len(args) < 1 {
+		fmt.Print("list name = ")
+		sc.Scan()
+		listName = sc.Text()
+	} else {
+		listName = args[0]
+	}
+
+	alloced := &List{}
+	alloced.Init()
+	listTbl[listName] = alloced
+}
+
+func listPrint(args []string){
+	var tblName string
+	if len(args) < 1 {
+		fmt.Print("list name = ")
+		sc.Scan()
+		tblName = sc.Text()
+	} else {
+		tblName = args[0]
+	}
+
+	got, in := listTbl[tblName]
+	if in{
+		got.ListPrint()
+	} else {
+		fmt.Println("name error")
+	}
+}
+
+func stripListCall(args []string){
+	var fnName,listName string
+	if len(args) < 2{
+		fmt.Print("function to call = ")
+		sc.Scan()
+		fnName=sc.Text()
+		fmt.Print("list to be for each argument = ")
+		sc.Scan()
+		listName=sc.Text()
+	} else {
+		fnName,listName=args[0],args[1]
+	}
+
+	L, in := listTbl[listName]
+	_, indef := definedFunctions[fnName]
+	_, inbif := builtIns[fnName]
+
+	if !in {
+		fmt.Println("list name error")
+		return
+	}
+
+	if !indef  && !inbif {
+		fmt.Println("function name error")
+		return
+	}
+
+
+	currentNode := L.Head
+	for currentNode != nil {
+		if currentNode.Data != nil{
+			call([]string{fnName, *(currentNode.Data)})
+		} else{
+			if DEBUG{
+				fmt.Println("saw a wierd nil Data pointer in a list")
+			}
+		}
+		currentNode = currentNode.Next
+	}
+}
+
+func reflectRowList(args []string){
+	var tableName, rowId, listName string
+	if len(args) < 3 {
+		fmt.Print("csv table name = ")
+		sc.Scan()
+		tableName=sc.Text()
+
+		fmt.Print("row number = ")
+		sc.Scan()
+		rowId=sc.Text()
+
+		fmt.Print("new list name = ")
+		sc.Scan()
+		listName=sc.Text()
+	} else {
+		tableName, rowId, listName = args[0],args[1],args[2]
+	}
+
+	csvTblToDo, incsv := csvTbl[tableName]
+	if !incsv{
+		fmt.Println("csv name error")
+		return
+	}
+
+	alloced := &List{}
+	alloced.Init()
+	listTbl[listName] = alloced
+
+	rowNum, err := strconv.Atoi(rowId)
+	if err != nil || rowNum < 0 || rowNum >= len(csvTblToDo.data){
+		fmt.Println("invalid row number")
+		return
+	}
+
+	i := 0
+	for i < len(csvTblToDo.data[rowNum]){
+		alloced.Insert(&(csvTblToDo.data[rowNum][i]))
+		i++
+	}
+}
+
+func reflectColList(args []string){
+	var tableName, colId, listName string
+	if len(args) < 3 {
+		fmt.Print("csv table name = ")
+		sc.Scan()
+		tableName=sc.Text()
+
+		fmt.Print("column number = ")
+		sc.Scan()
+		colId=sc.Text()
+
+		fmt.Print("new list name = ")
+		sc.Scan()
+		listName=sc.Text()
+	} else {
+		tableName, colId, listName = args[0],args[1],args[2]
+	}
+
+	csvTblToDo, incsv := csvTbl[tableName]
+	if !incsv{
+		fmt.Println("csv name error")
+		return
+	}
+
+	alloced := &List{}
+	alloced.Init()
+	listTbl[listName] = alloced
+
+	colNum, err := strconv.Atoi(colId)
+	if err != nil || colNum < 0 || colNum >= len(csvTblToDo.data[0]){
+		fmt.Println("invalid row number")
+		return
+	}
+
+	i := 0
+	for i < len(csvTblToDo.data){
+		if len(csvTblToDo.data[i]) > colNum{
+			alloced.Insert(&(csvTblToDo.data[i][colNum]))
+		}
+		i++
+	}
+}
+
+
+
 //////////////////////////
 // http web app functions
 
@@ -3037,22 +3278,62 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 				"tragedy":{
 					Msg:"That was Partil's only flaw. He was a great man.",
 					Options:[]Option{
-						{Opt:"That's good. Thank you.",Next:"placer"},
+						{Opt:"That's good. Thank you.",Next:"Yeeho"},
 						{Opt:"That got me thinking about something. If Partil was such a great wizard then why couldn't he find a date to sooth his broken wing.",Next:"poor_partil"},
 					},
 				},
 
+				"Yeeho":{
+					Msg:"YEEHO yon fool! You can't catch me!",
+					Options:[]Option{
+						{Opt:"I bet I can catch you!",Next:"running"},
 
+					},
+				},
+
+
+				"running":{
+					Msg:"He ran and he ran and you caught him. Good job.",
+					Options:[]Option{
+						{Opt:"What kind of food did Partil like to eat?",Next:"poor_partil"},
+
+					},
+				},
 					"poor_partil":{
 						Msg:"He loved dates with all their fiber and nutritional value but that's beside the point, youngin'. We should start off on our journey. Now don't worry we'll get you some coleslaw from Georgia and a coke. First let me but this big dip in.",
 						Options:[]Option{
-							{Opt:"That coleslaw is all the way from goegia? it's probably slimy by now.",Next:"placer"},
+							{Opt:"That coleslaw is all the way from goegia? it's probably slimy by now.",Next:"the_slaw"},
+							{Opt:"Is the Pace Salsa Con queso TM !??",Next:"big_dip"},
+							{Opt:"What's that shadow over there!?!",Next:"what_is_shadow"},
+						},
+					},
+
+					"big_dip":{
+						Msg:"No this is tobacco for Mossia. Good golden leaf.",
+						Options:[]Option{
+							{Opt:"I'm a Liberal know-it-all and I think that is a discusting habbit!",Next:"placer"},
 
 						},
 					},
 
 
-		/*
+					"what_is_shadow":{
+					Msg:"Oh my God! Run! It's an Orc!",
+					Options:[]Option{
+						{Opt:"Run into the forest in a panicked rush!",Next:"placer"},
+
+					},
+					},
+
+					"the_slaw":{
+						Msg:"These Here coleslaw tubs are straight from Slawwich, Georgia. There's nothing better so be greatful.",
+						Options:[]Option{
+							{Opt:"Eat slaw like a champion",Next:"placer"},
+
+						},
+					},
+
+					/*
 			"":{
 					Msg:"",
 					Options:[]Option{
@@ -3082,15 +3363,16 @@ func webCSVView(rw http.ResponseWriter, req *http.Request){
 
 	tbl, intbl := csvTbl[tableName]
 
-	webCsv := normalCSVEtoWebCSVE(tbl)
-
 	if intbl{
+		webCsv := normalCSVEtoWebCSVE(tbl)
 		temp, _ := template.ParseFiles("./csv_view.html.tmpl")
 		temp.Execute(rw,webCsv)
 	} else {
 		rw.Write([]byte("<h1>error could not find table</h1>"))
 	}
 }
+
+
 
 
 func main() {
@@ -3191,11 +3473,16 @@ func main() {
 	builtIns["showCSV"] = showCSV
 	builtIns["getCellCSV"] = getCellCSV
 	builtIns["addHeaderCSV"]=addHeaderCSV
+	//New list builtIns Horray!
+	builtIns["insertList"]=insertToList
+	builtIns["newList"] = newList
+	builtIns["printList"] = listPrint
+	builtIns["applyList"]=stripListCall
+	builtIns["reflectRowList"]=reflectRowList
+	builtIns["reflectColList"]=reflectColList
 	//builtIns["sumColCSV"]=sumColCSV
 	//builtIns["filterByBlacklistCSV"]=filterByBlacklist
-	//builtIns["newList"] = newList
 	//builtIns["byIndexList"]=byIndexEmitList
-	//builtIns["applyToList"]=applyToList
 	//builtIns["newFile"]=newFile
 	//builtIns["readLine"]=readline
 	//builtIns["closeFile"]=closeFile
