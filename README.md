@@ -20,7 +20,11 @@ If you need a C compiler that works with windows you can install gcc provided by
 
 project uses https://github.com/semitrivial/csv_parser/tree/master for csv parsing
 
-check out tron.go for a list of the built in's in main
+this will give you a list of availible builtIn functions.
+
+```
+!help:
+```
 
 arguments are CSV
 
