@@ -20,7 +20,7 @@ If you need a C compiler that works with windows you can install gcc provided by
 
 project uses https://github.com/semitrivial/csv_parser/tree/master for csv parsing
 
-this will give you a list of availible builtIn functions.
+this will give you a list of availible builtIn functions. ifstop and return are only availible within user defined functions.
 
 ```
 !help:
