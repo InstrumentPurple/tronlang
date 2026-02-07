@@ -329,7 +329,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.75 (CSV workshop update v0.8 rollout progress)"
+	VERSION = "v0.76 (CSV workshop update v0.8 rollout progress)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -2163,7 +2163,8 @@ func sortByCol(args []string) {
 		tblName, columnId = args[0], args[1]
 	}
 
-	col, _ := strconv.Atoi(columnId)
+	colF, _ := evaluateRPN(columnId)
+	col := int(colF)
 	mergeSort(&(csvTbl[tblName].data), int64(col))
 	fmt.Println("finished sort")
 }
@@ -2185,13 +2186,14 @@ func bins(args []string) {
 		csvName, val, colTmp = args[0], args[1], args[2]
 	}
 
-	col, _ := strconv.Atoi(colTmp)
+	colF, _ := evaluateRPN(colTmp)
+	col := int(colF)
 
 	tbl, inerr := csvTbl[csvName]
 	if inerr {
 		got := binSearch(&(tbl.data), 0, int64(len(tbl.data)), val, int64(col))
 		fmt.Print("index = ", got, "\n")
-		if got != -1 {
+		if got != -1 && got < int64(len(tbl.data)) {
 			ptr := pourSlice(tbl.data[got])
 			fmt.Println(ptr)
 			emit([]string{"bins", ptr})
@@ -2406,7 +2408,8 @@ func csvByIndex(args []string) {
 		tblName, index = args[0], args[1]
 	}
 
-	indVal, _ := strconv.Atoi(index)
+	indValF, _ := evaluateRPN(index)
+	indVal := int(indValF)
 
 	table, isIn := csvTbl[tblName]
 	if isIn && indVal < len(table.data) && indVal >= 0 {
@@ -2469,7 +2472,9 @@ func findPrefixCSV(args []string) {
 		prefixStr, tblName, colNum = args[0], args[1], args[2]
 	}
 
-	colId, _ := strconv.Atoi(colNum)
+	colIdF, _ := evaluateRPN(colNum)
+	colId := int(colIdF)
+
 	gotTbl, incsvtbl := csvTbl[tblName]
 	pre := C.CString(prefixStr)
 	if incsvtbl && colId >= 0 {
@@ -2513,7 +2518,10 @@ func findPostfixCSV(args []string) {
 		postfixStr, tblName, colNum = args[0], args[1], args[2]
 	}
 
-	colId, _ := strconv.Atoi(colNum)
+	colIdF, _ := evaluateRPN(colNum)
+	colId := int(colIdF)
+
+
 	gotTbl, incsvtbl := csvTbl[tblName]
 	post := C.CString(postfixStr)
 	if incsvtbl && colId >= 0 {
@@ -2565,8 +2573,10 @@ func setCellCSV(args []string) {
 
 	tbl, intbl := csvTbl[tblName]
 
-	rowNum, err1 := strconv.Atoi(rowId)
-	colNum, err2 := strconv.Atoi(colId)
+	rowNumF, err1 := evaluateRPN(rowId)
+	rowNum := int(rowNumF)
+	colNumF, err2 := evaluateRPN(colId)
+	colNum := int(colNumF)
 
 	if err1 != nil || err2 != nil {
 		fmt.Println("error parsing numbers")
@@ -2662,10 +2672,14 @@ func cropCSV(args []string) {
 		srcTableName, destTableName, tlX, tlY, brX, brY = args[0], args[1], args[2], args[3], args[4], args[5]
 	}
 
-	topLeftX, err1 := strconv.Atoi(tlX)
-	topLeftY, err2 := strconv.Atoi(tlY)
-	bottomRightX, err3 := strconv.Atoi(brX)
-	bottomRightY, err4 := strconv.Atoi(brY)
+	topLeftXF, err1 := evaluateRPN(tlX)
+	topLeftX := int(topLeftXF)
+	topLeftYF, err2 := evaluateRPN(tlY)
+	topLeftY := int(topLeftYF)
+	bottomRightXF, err3 := evaluateRPN(brX)
+	bottomRightX := int(bottomRightXF)
+	bottomRightYF, err4 := evaluateRPN(brY)
+	bottomRightY := int(bottomRightYF)
 
 	if bottomRightX < topLeftX {
 		fmt.Println("bottom right x must be less then top left x")
@@ -2777,8 +2791,10 @@ func getCellCSV(args []string) {
 
 	tbl, intbl := csvTbl[tblName]
 
-	rowNum, err1 := strconv.Atoi(rowId)
-	colNum, err2 := strconv.Atoi(colId)
+	rowNumF, err1 := evaluateRPN(rowId)
+	rowNum := int(rowNumF)
+	colNumF, err2 := evaluateRPN(colId)
+	colNum := int(colNumF)
 
 	if err1 != nil || err2 != nil {
 		fmt.Println("error parsing numbers")
@@ -2969,7 +2985,8 @@ func reflectRowList(args []string){
 	alloced.Init()
 	listTbl[listName] = alloced
 
-	rowNum, err := strconv.Atoi(rowId)
+	rowNumF, err := evaluateRPN(rowId)
+	rowNum := int(rowNumF)
 	if err != nil || rowNum < 0 || rowNum >= len(csvTblToDo.data){
 		fmt.Println("invalid row number")
 		return
@@ -3010,7 +3027,8 @@ func reflectColList(args []string){
 	alloced.Init()
 	listTbl[listName] = alloced
 
-	colNum, err := strconv.Atoi(colId)
+	colNumF, err := evaluateRPN(colId)
+	colNum := int(colNumF)
 	if err != nil || colNum < 0 || colNum >= len(csvTblToDo.data[0]){
 		fmt.Println("invalid row number")
 		return
@@ -3480,7 +3498,6 @@ func main() {
 	builtIns["applyList"]=stripListCall
 	builtIns["reflectRowList"]=reflectRowList
 	builtIns["reflectColList"]=reflectColList
-	//builtIns["sumColCSV"]=sumColCSV
 	//builtIns["filterByBlacklistCSV"]=filterByBlacklist
 	//builtIns["byIndexList"]=byIndexEmitList
 	//builtIns["newFile"]=newFile
