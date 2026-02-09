@@ -329,7 +329,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.78.1 (mostly for role-playing)"
+	VERSION = "v0.78.2 (mostly for role-playing)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -845,12 +845,6 @@ startLoop:
 						fmt.Println("saw builtin", fnname)
 					}
 					builtin(args)
-					if fnname == "call" || fnname == "ifcall"{
-						callStack = callStack[0:(len(callStack) - 1)]
-						if DEBUG {
-							fmt.Println("pop stack reached type 2")
-						}
-					}
 				}
 
 				_, indefn := definedFunctions[fnname]
@@ -3516,9 +3510,9 @@ func main() {
 	builtIns["byIndexCSV"] = csvByIndex // goes with bins
 	builtIns["null"] = nullFn
 	builtIns["nil"] = nullFn
-
 	builtIns["pristineRb"] = pristineNums // you nuked but you want e and pi back
 	builtIns["help"]=help
+
 	builtIns["silenceSrc"]=silenceSrc
 	builtIns["printFn"]=printFn
 	builtIns["printFnNames"]=printFnNames
