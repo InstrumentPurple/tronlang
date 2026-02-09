@@ -329,7 +329,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.78.2 (mostly for role-playing)"
+	VERSION = "v0.78.3 (mostly for role-playing)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -682,7 +682,7 @@ func doSourceLoop(content string) bool {
 			callPart, argPart := sep[0], sep[1]
 
 			if re["sourceLoop"].MatchString(argPart) {
-				path := strings.Trim(argPart, "(src ")
+				path := strings.TrimPrefix(argPart, "(src ")
 				path = strings.Trim(path, ")")
 
 				file, err := os.Open(path)
@@ -694,7 +694,7 @@ func doSourceLoop(content string) bool {
 
 				fsc := bufio.NewScanner(file)
 
-				fnName := strings.Trim(callPart, "!")
+				fnName := strings.TrimPrefix(callPart, "!")
 
 				_, inDeffn := definedFunctions[fnName]
 
@@ -890,7 +890,7 @@ func parseAndCall(content string, useless int64) bool {
 			callPart, argPart := sep[0], sep[1]
 
 			if re["sourceLoop"].MatchString(argPart) {
-				path := strings.Trim(argPart, "(src ")
+				path := strings.TrimPrefix(argPart, "(src ")
 				path = strings.Trim(path, ")")
 
 				file, _ := os.Open(path)
@@ -3565,8 +3565,8 @@ func main() {
 		} else if re["defFunc"].MatchString(command) {
 			instructions := []string{}
 
-			name := strings.Trim(command, "def ")
-			name = strings.Trim(name, ":")
+			name := strings.TrimPrefix(command, "def ")
+			name = strings.TrimSuffix(name, ":")
 			recentDefName = name
 
 			for {
