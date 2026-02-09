@@ -329,7 +329,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.76 (CSV workshop update v0.8 rollout progress)"
+	VERSION = "v0.78.1 (mostly for role-playing)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -647,7 +647,7 @@ func parseDeref(args *[]string) {
 			} else if inrb {
 				(*args)[i] = fmt.Sprintf("%f", grb)
 			} else if inb {
-				(*args)[i] = fmt.Sprintf("%t", gb)
+				(*args)[i] = fmt.Sprintf("%f", gb)
 			}
 
 			if !ins && !inrb && !inb {
@@ -780,9 +780,9 @@ startLoop:
 				finLine := doSourceLoop(line)
 				if finLine {
 					iptr++
-					continue
+					continue;
 					//callStack[len(callStack)-1].stptr = iptr + 1
-					///goto startLoop
+					//goto startLoop
 				}
 
 				// this is not maintainable
@@ -845,6 +845,12 @@ startLoop:
 						fmt.Println("saw builtin", fnname)
 					}
 					builtin(args)
+					if fnname == "call" || fnname == "ifcall"{
+						callStack = callStack[0:(len(callStack) - 1)]
+						if DEBUG {
+							fmt.Println("pop stack reached type 2")
+						}
+					}
 				}
 
 				_, indefn := definedFunctions[fnname]
@@ -866,7 +872,7 @@ startLoop:
 			if iptr >= int64(len(fnlist)) && len(callStack) > 1 {
 				callStack = callStack[0:(len(callStack) - 1)]
 				if DEBUG {
-					fmt.Println("pop stack reached")
+					fmt.Println("pop stack reached type 1")
 				}
 			}
 		}
@@ -1165,7 +1171,7 @@ func getVar(args []string) {
 
 		if inb {
 			fmt.Println(gb)
-			emit([]string{"getVar", fmt.Sprintf("%t", gb)})
+			emit([]string{"getVar", fmt.Sprintf("%f", gb)})
 		}
 
 		if !ins && !inrb && !inb {
@@ -1429,7 +1435,10 @@ func push(args []string) {
 
 func call(args []string) {
 	push(args)
-	run([]string{})
+	_, inb := builtIns[args[0]]
+	if !inb{
+		run([]string{})
+	}
 }
 
 // i guess sometimes you don't want to pass strings
@@ -3044,6 +3053,36 @@ func reflectColList(args []string){
 }
 
 
+func printFn(args []string){
+	var fnName string
+	if len(args) < 1{
+		fmt.Print("function name")
+		sc.Scan()
+		fnName = sc.Text()
+	} else {
+		fnName = args[0]
+	}
+
+	lines, in := definedFunctions[fnName]
+
+	if !in {
+		fmt.Println("not found in user defined functions!")
+		return
+	}
+
+	for _, line := range lines{
+		fmt.Println(line)
+	}
+
+}
+
+
+func printFnNames(args []string){
+	for name,_ := range definedFunctions{
+		fmt.Println(name)
+	}
+}
+
 
 //////////////////////////
 // http web app functions
@@ -3481,6 +3520,8 @@ func main() {
 	builtIns["pristineRb"] = pristineNums // you nuked but you want e and pi back
 	builtIns["help"]=help
 	builtIns["silenceSrc"]=silenceSrc
+	builtIns["printFn"]=printFn
+	builtIns["printFnNames"]=printFnNames
 
 	//these will be subject to change till v0.8
 	builtIns["findPrefixCSV"] = findPrefixCSV
@@ -3504,7 +3545,7 @@ func main() {
 	//builtIns["readLine"]=readline
 	//builtIns["closeFile"]=closeFile
 	//builtIns["writeLine"]=writeLine
-	//builtIns["rowToList"]=rowToList
+	//builtIns["copyRowToList"]=copyRowToList
 	//builtIns["addRowFromListCSV"]=addRowFromListCSV
 
 	//TODO: modify emit to append to list
@@ -3544,13 +3585,16 @@ func main() {
 						k := []string{}
 						exprs := []string{}
 						for {
-							fmt.Print("key = ")
+							fmt.Print("variable name = ")
 							sc.Scan()
 							if sc.Text() == "endkv" {
 								definedFunKvargs[recentDefName] = kvargPair{ks: k, es: exprs}
 								break
 							} else {
-								k = append(k, sc.Text())
+								ktxt := sc.Text()
+								rootBeer[ktxt]=0.0
+								k = append(k, ktxt)
+
 								fmt.Print("rootbeer expression = ")
 								sc.Scan()
 								exprs = append(exprs, sc.Text())
