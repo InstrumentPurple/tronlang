@@ -329,7 +329,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.78.3 (mostly for role-playing)"
+	VERSION = "v0.78.4 (mostly for role-playing)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -499,6 +499,8 @@ func evaluateRPN(expression string) (float64, error) {
 					return 0, fmt.Errorf("division by zero")
 				}
 				result = math.Asin(operand1 / operand2)
+			case "mod":
+				result = float64(int64(operand1) % int64(operand2))
 			default:
 				return 0, fmt.Errorf("invalid operator: %s", token)
 			}
@@ -848,7 +850,7 @@ startLoop:
 				}
 
 				_, indefn := definedFunctions[fnname]
-				if indefn {
+				if indefn { // and not in builtIn?
 					if DEBUG {
 						fmt.Println("pushing to stack")
 					}
@@ -1428,6 +1430,10 @@ func push(args []string) {
 }
 
 func call(args []string) {
+	if len(args) < 1{
+		fmt.Println("provide your function name and your arguments to that function")
+		return
+	}
 	push(args)
 	_, inb := builtIns[args[0]]
 	if !inb{
@@ -2775,11 +2781,15 @@ func showCSV(args []string) {
 }
 
 func getCellCSV(args []string) {
-	var tblName, rowId, colId string
-	if len(args) < 3 {
+	var tblName,strName, rowId, colId string
+	if len(args) < 4 {
 		fmt.Print("csv table name = ")
 		sc.Scan()
 		tblName = sc.Text()
+
+		fmt.Print("destination string name = ")
+		sc.Scan()
+		strName = sc.Text()
 
 		fmt.Print("row number (index) = ")
 		sc.Scan()
@@ -2789,7 +2799,7 @@ func getCellCSV(args []string) {
 		sc.Scan()
 		colId = sc.Text()
 	} else {
-		tblName, rowId, colId = args[0], args[1], args[2]
+		tblName, strName, rowId, colId = args[0], args[1], args[2], args[3]
 	}
 
 	tbl, intbl := csvTbl[tblName]
@@ -2800,7 +2810,7 @@ func getCellCSV(args []string) {
 	colNum := int(colNumF)
 
 	if err1 != nil || err2 != nil {
-		fmt.Println("error parsing numbers")
+		fmt.Println("error evaluating expression")
 		return
 	}
 
@@ -2808,7 +2818,7 @@ func getCellCSV(args []string) {
 		if len(tbl.data) > rowNum && rowNum >= 0 {
 			if len(tbl.data[rowNum]) > colNum && colNum >= 0 {
 				got := tbl.data[rowNum][colNum]
-				fmt.Println(got)
+				strTbl[strName] = got
 				emit([]string{"getCellCSV", got})
 			} else {
 				fmt.Println("invalid column number")
@@ -3075,6 +3085,50 @@ func printFnNames(args []string){
 	for name,_ := range definedFunctions{
 		fmt.Println(name)
 	}
+}
+
+
+func appendRowFromListCSV(args []string){
+	var destCSVTbl,srcLst string
+	if len(args) < 2 {
+		fmt.Print("destination csv table = ")
+		sc.Scan()
+		destCSVTbl=sc.Text()
+
+		fmt.Print("list name = ")
+		sc.Scan()
+		srcLst=sc.Text()
+	} else {
+		destCSVTbl, srcLst = args[0], args[1]
+	}
+
+	tbl, in := csvTbl[destCSVTbl]
+
+	if !in{
+		fmt.Println("csv name error")
+		return
+	}
+
+	lst, inlst := listTbl[srcLst]
+	if !inlst{
+		fmt.Println("list name error")
+		return
+	}
+
+	if lst.Count != int64(len(tbl.data[0])){
+		fmt.Println("List must contain exactly the same amount of items as the number of csv columns")
+		return
+	}
+
+	workingSlice := make([]string,0)
+	cur := lst.Head
+
+	for cur != nil{
+		workingSlice = append(workingSlice, *(cur.Data))
+		cur = cur.Next
+	}
+
+	tbl.data = append(tbl.data, workingSlice)
 }
 
 
@@ -3359,30 +3413,81 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 						},
 					},
 
-					"big_dip":{
-						Msg:"No this is tobacco for Mossia. Good golden leaf.",
-						Options:[]Option{
-							{Opt:"I'm a Liberal know-it-all and I think that is a discusting habbit!",Next:"placer"},
+						"big_dip":{
+							Msg:"No this is tobacco for Mossia. Good golden leaf.",
+							Options:[]Option{
+								{Opt:"I'm a Liberal know-it-all and I think that is a discusting habbit!",Next:"placer"},
 
+							},
 						},
-					},
 
 
-					"what_is_shadow":{
-					Msg:"Oh my God! Run! It's an Orc!",
-					Options:[]Option{
-						{Opt:"Run into the forest in a panicked rush!",Next:"placer"},
-
-					},
-					},
-
-					"the_slaw":{
-						Msg:"These Here coleslaw tubs are straight from Slawwich, Georgia. There's nothing better so be greatful.",
+						"what_is_shadow":{
+						Msg:"Oh my God! Run! It's an Orc!",
 						Options:[]Option{
-							{Opt:"Eat slaw like a champion",Next:"placer"},
-
+							{Opt:"Run into the forest in a panicked rush!",Next:"placer"},
+							{Opt:"That's not an Orc it's an Orchestra!",Next:"orchestra"},
 						},
-					},
+						},
+
+						"orchestra":{
+							Msg:"Oh what a beutiful arrangement of fine men and women in such fancy clothing too. Let's eat some coleslaw and take a listen to them!",
+							Options:[]Option{
+								{Opt:"I'm sure glad i didn't have to run again.",Next:"the_slaw"},
+
+							},
+						},
+
+						"the_slaw":{
+							Msg:"These Here coleslaw tubs are straight from Slawwich, Georgia. There's nothing better so be greatful.",
+							Options:[]Option{
+								{Opt:"Eat slaw like a champion",Next:"eat_slaw"},
+
+							},
+						},
+
+						"eat_slaw":{
+							Msg:"'I guess we better leave then.' We bumbled and humbled and hummied all the way a few feet away. 'Travel is taxing so we better travel slow'",
+							Options:[]Option{
+								{Opt:"Go a few more feet.",Next:"make_progress_after_slaw"},
+
+							},
+						},
+
+						"make_progress_after_slaw":{
+							Msg:"Bibbibble and gleamMMmMMMMmmMing seas... you say: 'hey that slaw turned out prety good I think. Good as KFC (TM) at least. A few more feet. A few more feet.'",
+							Options:[]Option{
+								{Opt:"Take a couple strides",Next:"couple_strides"},
+
+							},
+						},
+
+						"couple_strides":{
+							Msg:"Gaaaaah! We'll take hours to get to the wizards in Callenber at this rate! What should we do?",
+							Options:[]Option{
+								{Opt:"Just get a horse and carraige.",Next:"just_go_already"},
+								{Opt:"I like it the slow way.",Next:"nice_n_slow"},
+
+							},
+						},
+
+
+						"nice_n_slow":{
+							Msg:"They then went on a short walk in the right direction and then they found themsleves passing a stable by sure coincidence. 'Way Ho Yon strangers! Are you looking for a ride somewhere?'",
+							Options:[]Option{
+								{Opt:"Actually that sounds like a good idea. I'm already tired. ",Next:"placer"},
+
+							},
+						},
+
+
+						"just_go_already":{
+							Msg:"All right now let's find us a some horses or something. I know of a stable i saw when wondering the other day. It shouldn't take us long.",
+							Options:[]Option{
+								{Opt:"Finally.",Next:"placer"},
+
+							},
+						},
 
 					/*
 			"":{
@@ -3533,16 +3638,13 @@ func main() {
 	builtIns["applyList"]=stripListCall
 	builtIns["reflectRowList"]=reflectRowList
 	builtIns["reflectColList"]=reflectColList
+	builtIns["appendRowFromList"]=appendRowFromListCSV
 	//builtIns["filterByBlacklistCSV"]=filterByBlacklist
-	//builtIns["byIndexList"]=byIndexEmitList
 	//builtIns["newFile"]=newFile
 	//builtIns["readLine"]=readline
 	//builtIns["closeFile"]=closeFile
 	//builtIns["writeLine"]=writeLine
-	//builtIns["copyRowToList"]=copyRowToList
-	//builtIns["addRowFromListCSV"]=addRowFromListCSV
 
-	//TODO: modify emit to append to list
 
 	/* doesn't do anyting systematic or scary so you can
 	* change it without worry just
