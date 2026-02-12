@@ -329,7 +329,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.78.4 (mostly for role-playing)"
+	VERSION = "v0.78.5 (some cleanup)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -1461,7 +1461,7 @@ func stackGetFloat64(i string) float64 {
 
 func flip(args []string) {
 	if len(args) < 1 {
-		fmt.Println("You should know to give me a Boole")
+		fmt.Println("You should know to give me a Boole variable")
 	} else {
 		boole[args[0]] = !boole[args[0]]
 	}
@@ -2202,10 +2202,11 @@ func bins(args []string) {
 	if inerr {
 		got := binSearch(&(tbl.data), 0, int64(len(tbl.data)), val, int64(col))
 		fmt.Print("index = ", got, "\n")
+		strInd := strconv.FormatInt(got,10)
+		emit([]string{"bins", strInd})
 		if got != -1 && got < int64(len(tbl.data)) {
 			ptr := pourSlice(tbl.data[got])
 			fmt.Println(ptr)
-			emit([]string{"bins", ptr})
 		}
 	} else {
 		fmt.Println("name error")
@@ -2227,7 +2228,7 @@ func showHeadCSV(args []string) {
 		fmt.Println("name error")
 	} else {
 		if got.hasHead {
-			fmt.Println(got.head)
+			fmt.Println(pourSlice(got.head))
 		} else {
 			fmt.Println("this csv does not have a header")
 		}
@@ -2487,15 +2488,16 @@ func findPrefixCSV(args []string) {
 	gotTbl, incsvtbl := csvTbl[tblName]
 	pre := C.CString(prefixStr)
 	if incsvtbl && colId >= 0 {
-		for _, row := range gotTbl.data {
+		for index, row := range gotTbl.data {
 			if len(row) > colId {
 				cell := C.CString(row[colId])
 
 				hasPrefix := C.prefix(cell, pre)
 				if bool(hasPrefix) {
 					psr := pourSlice(row)
-					fmt.Println(psr)
-					emit([]string{"findPrefixCSV", psr})
+					fmt.Println(index,":",psr)
+					strInd := strconv.FormatInt(int64(index), 10)
+					emit([]string{"findPrefixCSV", strInd})
 				}
 
 				C.free(unsafe.Pointer(cell))
@@ -2534,15 +2536,16 @@ func findPostfixCSV(args []string) {
 	gotTbl, incsvtbl := csvTbl[tblName]
 	post := C.CString(postfixStr)
 	if incsvtbl && colId >= 0 {
-		for _, row := range gotTbl.data {
+		for index, row := range gotTbl.data {
 			if len(row) > colId {
 				cell := C.CString(row[colId])
 
 				hasPrefix := C.postfix(cell, post)
 				if bool(hasPrefix) {
 					psr := pourSlice(row)
-					fmt.Println(psr)
-					emit([]string{"findPostfixCSV", psr})
+					fmt.Println(index,":",psr)
+					strInd := strconv.FormatInt(int64(index), 10)
+					emit([]string{"findPostfixCSV", strInd})
 				}
 
 				C.free(unsafe.Pointer(cell))
@@ -3132,6 +3135,45 @@ func appendRowFromListCSV(args []string){
 }
 
 
+func saveFn(args []string){
+	var fnName, fpath string
+	if len(args) < 2{
+		fmt.Print("function name = ")
+		sc.Scan()
+		fnName = sc.Text()
+
+		fmt.Print("destination file path = ")
+		sc.Scan()
+		fpath = sc.Text()
+	} else {
+		fnName, fpath = args[0],args[1]
+	}
+
+	if fileExists(fpath){
+		fmt.Println("will not overwrite file " + fpath)
+		return
+	}
+
+	lines, in := definedFunctions[fnName]
+
+	if !in {
+		fmt.Println("Cannot find user defined function")
+		return
+	}
+
+	fileh, ferr := os.Create(fpath)
+	if ferr != nil{
+		fmt.Println(ferr)
+	}
+	defer fileh.Close()
+
+	for _,line := range lines {
+		fileh.Write([]byte(line+"\n"))
+	}
+}
+
+
+
 //////////////////////////
 // http web app functions
 
@@ -3621,6 +3663,7 @@ func main() {
 	builtIns["silenceSrc"]=silenceSrc
 	builtIns["printFn"]=printFn
 	builtIns["printFnNames"]=printFnNames
+	builtIns["saveFn"]=saveFn
 
 	//these will be subject to change till v0.8
 	builtIns["findPrefixCSV"] = findPrefixCSV
@@ -3631,7 +3674,6 @@ func main() {
 	builtIns["showCSV"] = showCSV
 	builtIns["getCellCSV"] = getCellCSV
 	builtIns["addHeaderCSV"]=addHeaderCSV
-	//New list builtIns Horray!
 	builtIns["insertList"]=insertToList
 	builtIns["newList"] = newList
 	builtIns["printList"] = listPrint
@@ -3639,11 +3681,6 @@ func main() {
 	builtIns["reflectRowList"]=reflectRowList
 	builtIns["reflectColList"]=reflectColList
 	builtIns["appendRowFromList"]=appendRowFromListCSV
-	//builtIns["filterByBlacklistCSV"]=filterByBlacklist
-	//builtIns["newFile"]=newFile
-	//builtIns["readLine"]=readline
-	//builtIns["closeFile"]=closeFile
-	//builtIns["writeLine"]=writeLine
 
 
 	/* doesn't do anyting systematic or scary so you can
