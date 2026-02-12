@@ -10,13 +10,24 @@
 <h1>Tronlang</h1>
 <hr>
 <table>
-{{range .Data}}
+{{if .HasHead}}
+<thead>
 <tr>
-{{range .}}
-<td id="data">{{.}}</td>
-{{end}}
+    {{range $id, $val := .Head}}
+        <th scope="col" colspan="1">{{$val}}</th>
+    {{end}}
 </tr>
+</thead>
 {{end}}
+<tbody>
+{{range .Data}}
+    <tr>
+    {{range .}}
+        <td id="data">{{.}}</td>
+    {{end}}
+    </tr>
+{{end}}
+</tbody>
 </table>
 
 <a href="/">back</a>
