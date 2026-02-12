@@ -5,6 +5,15 @@ td#data{
 	word-wrap: break-word;
 	overflow-wrap: break-word; /* Modern standard alias for word-wrap */
 	max-width:360px;
+    display: inline-block;
+    vertical-align: top;
+}
+
+th{
+    text-align: left;
+    padding:10px;
+    font-size:20px;
+    display: inline-block;
 }
 
 #footer{
