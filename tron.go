@@ -180,9 +180,9 @@ func (subject *List) Insert(dataPtr *string){
 }
 
 func ListPrint_(cur *ListNode){
-	if cur != nil{
+	for cur != nil{
 		fmt.Println(*(cur.Data))
-		ListPrint_(cur.Next)
+		cur = cur.Next
 	}
 }
 
@@ -329,7 +329,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.78.5 (some cleanup)"
+	VERSION = "v0.78.6 (some cleanup)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -2694,12 +2694,12 @@ func cropCSV(args []string) {
 	bottomRightY := int(bottomRightYF)
 
 	if bottomRightX < topLeftX {
-		fmt.Println("bottom right x must be less then top left x")
+		fmt.Println("bottom right x must be less than top left x")
 		return
 	}
 
 	if bottomRightY < topLeftY {
-		fmt.Println("bottom right y must be less then top left y")
+		fmt.Println("bottom right y must be less than top left y")
 		return
 	}
 
@@ -3118,7 +3118,12 @@ func appendRowFromListCSV(args []string){
 		return
 	}
 
-	if lst.Count != int64(len(tbl.data[0])){
+	var goodCheck bool = true
+	if len(tbl.data) < 1 {
+		goodCheck = false
+	}
+
+	if goodCheck && lst.Count != int64(len(tbl.data[0])){
 		fmt.Println("List must contain exactly the same amount of items as the number of csv columns")
 		return
 	}
@@ -3517,7 +3522,7 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 						"nice_n_slow":{
 							Msg:"They then went on a short walk in the right direction and then they found themsleves passing a stable by sure coincidence. 'Way Ho Yon strangers! Are you looking for a ride somewhere?'",
 							Options:[]Option{
-								{Opt:"Actually that sounds like a good idea. I'm already tired. ",Next:"placer"},
+								{Opt:"Actually that sounds like a good idea. I'm already tired. ",Next:"take_ride_with_peanut"},
 
 							},
 						},
@@ -3526,11 +3531,34 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 						"just_go_already":{
 							Msg:"All right now let's find us a some horses or something. I know of a stable i saw when wondering the other day. It shouldn't take us long.",
 							Options:[]Option{
-								{Opt:"Finally.",Next:"placer"},
+								{Opt:"Finally.",Next:"find_stable"},
 
 							},
 						},
 
+						"find_stable":{
+							Msg:"(In a thick smoke's voice) Welcome to the barnesley stables where we getcha going. My name is Werv and I'll be your driver this evening. So where are you headed?",
+							Options:[]Option{
+								{Opt:"We have fare for two to Callenber. We're in no rush.",Next:"take_ride_with_werv"},
+							},
+						},
+
+
+						"take_ride_with_peanut":{
+							Msg:"We can get there at about sundown how about that? My name is Peanut and I will be your driver today. Board the cairage. Hope you brought jackets because it might take you hours to find a good hotel once we are in Callenber. Now that Bradic is in control the inns have been slammed at this time of year. It's like the wizard's trade show now. More like a convention than a spiritual meeting these days.",
+							Options:[]Option{
+								{Opt:"I heard they have a firework show too!",Next:"placer"},
+
+							},
+						},
+
+						"take_ride_with_werv":{
+							Msg:"'That's just a 35 minute trip with our team. We should get there just before dark. Climb on! Would you like to hear a tale? How about The Two Kings of the Great West or '",
+							Options:[]Option{
+								{Opt:"Let's hear Two Kings it's been a while.",Next:"placer"},
+								{Opt:"Let's hear ", Next:"placer"},
+							},
+						},
 					/*
 			"":{
 					Msg:"",
