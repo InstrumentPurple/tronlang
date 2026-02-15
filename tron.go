@@ -329,7 +329,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.78.6 (some cleanup)"
+	VERSION = "v0.78.7 (some cleanup)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -1967,7 +1967,7 @@ func loadCSVFile(args []string) {
 		fmt.Print("file path = ")
 		sc.Scan()
 		fpath = sc.Text()
-		fmt.Print("database name = ")
+		fmt.Print("CSV table name = ")
 		sc.Scan()
 		tname = sc.Text()
 		fmt.Print("has header (Boole) = ")
@@ -2568,11 +2568,11 @@ func setCellCSV(args []string) {
 		sc.Scan()
 		tblName = sc.Text()
 
-		fmt.Print("row number = ")
+		fmt.Print("row number (rootbeer expression) = ")
 		sc.Scan()
 		rowId = sc.Text()
 
-		fmt.Print("column number = ")
+		fmt.Print("column number (rootbeer expression) = ")
 		sc.Scan()
 		colId = sc.Text()
 
@@ -2665,19 +2665,19 @@ func cropCSV(args []string) {
 
 		fmt.Println("Cordinates are like arrays so they start at the top left and continue right for x and down for y.")
 
-		fmt.Print("top left x = ")
+		fmt.Print("top left x  (rootbeer expression) = ")
 		sc.Scan()
 		tlX = sc.Text()
 
-		fmt.Print("top left y = ")
+		fmt.Print("top left y  (rootbeer expression) = ")
 		sc.Scan()
 		tlY = sc.Text()
 
-		fmt.Print("bottom right x = ")
+		fmt.Print("bottom right x (rootbeer expression) = ")
 		sc.Scan()
 		brX = sc.Text()
 
-		fmt.Print("bottom right y = ")
+		fmt.Print("bottom right y (rootbeer expression) = ")
 		sc.Scan()
 		brY = sc.Text()
 	} else {
@@ -2794,11 +2794,11 @@ func getCellCSV(args []string) {
 		sc.Scan()
 		strName = sc.Text()
 
-		fmt.Print("row number (index) = ")
+		fmt.Print("row number (index) (rootbeer expression) = ")
 		sc.Scan()
 		rowId = sc.Text()
 
-		fmt.Print("column number = ")
+		fmt.Print("column number (rootbeer expression) = ")
 		sc.Scan()
 		colId = sc.Text()
 	} else {
@@ -2938,7 +2938,7 @@ func stripListCall(args []string){
 		fmt.Print("function to call = ")
 		sc.Scan()
 		fnName=sc.Text()
-		fmt.Print("list to be for each argument = ")
+		fmt.Print("list to be for each first argument (args:0) = ")
 		sc.Scan()
 		listName=sc.Text()
 	} else {
@@ -2980,7 +2980,7 @@ func reflectRowList(args []string){
 		sc.Scan()
 		tableName=sc.Text()
 
-		fmt.Print("row number = ")
+		fmt.Print("row number (index) (rootbeer expression) = ")
 		sc.Scan()
 		rowId=sc.Text()
 
@@ -3022,7 +3022,7 @@ func reflectColList(args []string){
 		sc.Scan()
 		tableName=sc.Text()
 
-		fmt.Print("column number = ")
+		fmt.Print("column number (rootbeer expression) = ")
 		sc.Scan()
 		colId=sc.Text()
 
@@ -3174,6 +3174,49 @@ func saveFn(args []string){
 
 	for _,line := range lines {
 		fileh.Write([]byte(line+"\n"))
+	}
+}
+
+
+func findAllExactToIndexList(args []string){
+	var tblName,term,lstName string
+
+	if len(args) < 3 {
+		fmt.Print("CSV table name = ")
+		sc.Scan()
+		tblName = sc.Text()
+		fmt.Print("term = ")
+		sc.Scan()
+		term = sc.Text()
+
+		fmt.Print("list name = ")
+		sc.Scan()
+		lstName = sc.Text()
+	} else {
+		tblName,term,lstName = args[0], args[1], args[2]
+	}
+
+	lst, inlst := listTbl[lstName]
+	if !inlst{
+		lst = &List{}
+		lst.Init()
+		listTbl[lstName] = lst
+	}
+
+	table, in := csvTbl[tblName]
+	if !in {
+		fmt.Println("name error")
+	} else {
+		for index, row := range (*table).data {
+			for _, item := range row {
+				if item == term {
+					ntmp := new(string)
+					*ntmp = strconv.Itoa(index)
+					//success
+					lst.Insert(ntmp)
+				}
+			}
+		}
 	}
 }
 
@@ -3673,7 +3716,8 @@ func main() {
 	builtIns["sortByColCSV"] = sortByCol
 	builtIns["bins"] = bins //assumes the column is already sorted with sortByColCSV
 	builtIns["showHeadCSV"] = showHeadCSV
-	builtIns["findAllExactCSV"] = findAllExactCSV
+	//    recently rename to something shorter
+	builtIns["findExactCSV"] = findAllExactCSV
 	builtIns["attachAux"] = attachAux
 	builtIns["searchXMLt"] = searchXMLt // i don't even know if this is faster. verrified cooler tho
 	builtIns["showAux"] = showAux
@@ -3709,7 +3753,7 @@ func main() {
 	builtIns["reflectRowList"]=reflectRowList
 	builtIns["reflectColList"]=reflectColList
 	builtIns["appendRowFromList"]=appendRowFromListCSV
-
+	builtIns["findAllExactCSVToIndexList"]=findAllExactToIndexList
 
 	/* doesn't do anyting systematic or scary so you can
 	* change it without worry just
