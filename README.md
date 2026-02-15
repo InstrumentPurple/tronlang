@@ -88,6 +88,8 @@ return value of variable
 ```
 !return:"deref:k"
 ```
+deref esentially turns a variable into a string constant when passing arguments to functions. So do this when the function expects a constant not an expression.
+
 
 end a function definition
 
