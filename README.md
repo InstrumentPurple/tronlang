@@ -147,3 +147,14 @@ asin
 !math:pi 2 sin
 ```
 
+This list is all the availible boolean expression operators
+
+gt
+
+eq
+
+gteq
+
+and
+
+or
