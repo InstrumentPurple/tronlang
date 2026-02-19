@@ -329,7 +329,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.78.7 (some cleanup)"
+	VERSION = "v0.79.0 (U S E  M O R E  R A M)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -649,7 +649,7 @@ func parseDeref(args *[]string) {
 			} else if inrb {
 				(*args)[i] = fmt.Sprintf("%f", grb)
 			} else if inb {
-				(*args)[i] = fmt.Sprintf("%f", gb)
+				(*args)[i] = fmt.Sprintf("%f", boolToFloat64(gb))
 			}
 
 			if !ins && !inrb && !inb {
@@ -1162,12 +1162,12 @@ func getVar(args []string) {
 
 		if inrb {
 			fmt.Println(grb)
-			emit([]string{"getVar", fmt.Sprintf("%f", grb)})
+			emit([]string{"getVar", fmt.Sprintf("%t", grb)})
 		}
 
 		if inb {
-			fmt.Println(gb)
-			emit([]string{"getVar", fmt.Sprintf("%f", gb)})
+			fmt.Println(boolToFloat64(gb))
+			emit([]string{"getVar", fmt.Sprintf("%f", boolToFloat64(gb))})
 		}
 
 		if !ins && !inrb && !inb {
@@ -2006,7 +2006,7 @@ func loadCSVFile(args []string) {
 }
 
 func linsearch(subj string, possib []string) int {
-	var id_ int = 0
+	var id_ int = -1
 	for id, name := range possib {
 		if name == subj {
 			id_ = id
@@ -2431,6 +2431,17 @@ func csvByIndex(args []string) {
 	}
 }
 
+
+func getKeysFromBuiltIns()[]string{
+	total := make([]string, 0)
+	for key := range maps.Keys(builtIns) {
+		total = append(total, key)
+	}
+
+	return total
+}
+
+
 func getKeysFromShortTbls() []string {
 	total := make([]string, 0)
 	for key := range maps.Keys(shortTbls) {
@@ -2834,10 +2845,34 @@ func getCellCSV(args []string) {
 	}
 }
 
+func Reverse(s string) string {
+	runes := []rune(s) // Convert string to rune slice to handle Unicode correctly
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		// Swap runes at pointers i and j
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes) // Convert the reversed rune slice back to a string
+}
 
 func help(args []string){
-	for fnName,_ := range builtIns{
-		fmt.Println(fnName)
+	nameList := getKeysFromBuiltIns()
+
+	reversedNames := make([][]string,0)
+	for _,name := range nameList{
+		name = Reverse(name)
+		reversedNames = append(reversedNames, []string{name})
+	}
+
+	mergeSort(&reversedNames, int64(0))
+
+	forwardNames := make([][]string,0)
+	for _,name := range reversedNames{
+		name[0] = Reverse(name[0])
+		forwardNames = append(forwardNames, []string{name[0]})
+	}
+
+	for _, name := range forwardNames{
+		fmt.Println(name[0])
 	}
 }
 
@@ -3180,7 +3215,6 @@ func saveFn(args []string){
 
 func findAllExactToIndexList(args []string){
 	var tblName,term,lstName string
-
 	if len(args) < 3 {
 		fmt.Print("CSV table name = ")
 		sc.Scan()
@@ -3218,6 +3252,55 @@ func findAllExactToIndexList(args []string){
 			}
 		}
 	}
+}
+
+func rbToIntStr(args []string){
+	var rbName,destStringName string
+	if len(args) < 2 {
+		fmt.Print("rootbeer name = ")
+		sc.Scan()
+		rbName = sc.Text()
+
+		fmt.Print("destination string name = ")
+		sc.Scan()
+		destStringName = sc.Text()
+	} else {
+		rbName, destStringName = args[0], args[1]
+	}
+
+	rb ,inrb := rootBeer[rbName]
+	if !inrb{
+		fmt.Println("rootbeer does not exist")
+		return
+	}
+
+	intStr := strconv.Itoa(int(rb))
+	strTbl[destStringName] = intStr
+}
+
+
+func searchHeaderColNum(args []string){
+	var tableName,subj string
+	if len(args) < 2 {
+		fmt.Print("CSV table name = ")
+		sc.Scan()
+		tableName = sc.Text()
+
+
+		fmt.Print("header feild = ")
+		sc.Scan()
+		subj = sc.Text()
+	} else {
+		tableName,subj  = args[0], args[1]
+	}
+
+	tbl, incsv := csvTbl[tableName]
+	if !incsv{
+		fmt.Println("table does not exist")
+		return
+	}
+
+	fmt.Println(linsearch(subj, tbl.head))
 }
 
 
@@ -3591,12 +3674,11 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 							Msg:"We can get there at about sundown how about that? My name is Peanut and I will be your driver today. Board the cairage. Hope you brought jackets because it might take you hours to find a good hotel once we are in Callenber. Now that Bradic is in control the inns have been slammed at this time of year. It's like the wizard's trade show now. More like a convention than a spiritual meeting these days.",
 							Options:[]Option{
 								{Opt:"I heard they have a firework show too!",Next:"placer"},
-
 							},
 						},
 
 						"take_ride_with_werv":{
-							Msg:"'That's just a 35 minute trip with our team. We should get there just before dark. Climb on! Would you like to hear a tale? How about The Two Kings of the Great West or '",
+							Msg:"'That's just a 35 minute trip with our team. We should get there just before dark. Climb on! Would you like to hear a tale? How about The Two Kings of the Great West or t'",
 							Options:[]Option{
 								{Opt:"Let's hear Two Kings it's been a while.",Next:"placer"},
 								{Opt:"Let's hear ", Next:"placer"},
@@ -3715,6 +3797,7 @@ func main() {
 	builtIns["csvsql"] = csvsql // under construction. Just doing the select statement first
 	builtIns["sortByColCSV"] = sortByCol
 	builtIns["bins"] = bins //assumes the column is already sorted with sortByColCSV
+	builtIns["binsCSV"] = bins
 	builtIns["showHeadCSV"] = showHeadCSV
 	//    recently rename to something shorter
 	builtIns["findExactCSV"] = findAllExactCSV
@@ -3731,11 +3814,12 @@ func main() {
 	builtIns["nil"] = nullFn
 	builtIns["pristineRb"] = pristineNums // you nuked but you want e and pi back
 	builtIns["help"]=help
-
 	builtIns["silenceSrc"]=silenceSrc
 	builtIns["printFn"]=printFn
 	builtIns["printFnNames"]=printFnNames
+
 	builtIns["saveFn"]=saveFn
+	builtIns["rbToIntStr"]=rbToIntStr
 
 	//these will be subject to change till v0.8
 	builtIns["findPrefixCSV"] = findPrefixCSV
@@ -3754,11 +3838,12 @@ func main() {
 	builtIns["reflectColList"]=reflectColList
 	builtIns["appendRowFromList"]=appendRowFromListCSV
 	builtIns["findAllExactCSVToIndexList"]=findAllExactToIndexList
+	builtIns["headerColNumCSV"]=searchHeaderColNum
 
 	/* doesn't do anyting systematic or scary so you can
 	* change it without worry just
 	* some place to put all your most used stuff. Like
-	* your might want to load up the world graph or some functions of your's. */
+	* you might want to load up the world graph or some functions of your's. */
 	if fileExists("./init.tron") {
 		loadBlock([]string{"./init.tron", "init"})
 		parseAndCall("!init:", 0)
