@@ -14,7 +14,9 @@ go build tron.go
 
 Tronlang uses CGo which means you need a C compiler. What simply worked for me was gcc. I don't know about other compilers but you'd probably have to configure something to get this to compile with anything else. 
 
-A modern version of Go might be needed. I build this myself with 1.24.2
+I build this myself with version 1.24.2 on Windows 10
+
+The latest versions of go don't seem to be able to produce executables that actually run. Note that I'm on windows 10 still so your platform might effect buildability but I don't know.
 
 If you need a C compiler that works with windows you can install gcc provided by strawberry perl (https://strawberryperl.com/)
 
