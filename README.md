@@ -160,3 +160,13 @@ gteq
 and
 
 or
+
+Now with box mode
+
+simply
+
+```
+.\tron.exe box
+```
+
+now you can write scripts to control it on the network.
