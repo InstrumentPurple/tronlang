@@ -74,6 +74,10 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
+	"net"
+	"bytes"
+	"unicode"
+	"sync"
 )
 
 var DEBUG bool = false
@@ -329,7 +333,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.79.0 (U S E  M O R E  R A M)"
+	VERSION = "v0.79.5 (lower security then ever)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -725,6 +729,7 @@ func doSourceLoop(content string) bool {
 	}
 	return false
 }
+
 
 // the callstack take 2
 func run(blank []string) {
@@ -3304,6 +3309,29 @@ func searchHeaderColNum(args []string){
 }
 
 
+func lenList(args []string){
+	var name string
+	if len(args) < 1{
+		fmt.Print("list name = ")
+		sc.Scan()
+		name = sc.Text()
+	} else {
+		name = args[0]
+	}
+
+	found, in := listTbl[name]
+
+	if in {
+		fmt.Println(found.Count)
+		got := strconv.FormatInt(found.Count,10)
+		emit([]string{"lenList", got})
+	} else {
+		fmt.Println("Name does not exist!")
+	}
+}
+
+
+
 
 //////////////////////////
 // http web app functions
@@ -3723,7 +3751,48 @@ func webCSVView(rw http.ResponseWriter, req *http.Request){
 	}
 }
 
+func boxHandler(boinger net.Conn, printMu *sync.Mutex){
+	rbuf := make([]byte,4096)
+	for true {
+		length, readErr := boinger.Read(rbuf)
+		if readErr != nil{
+			fmt.Println(readErr)
+			break;
+		}
+		dest := make([]byte,length)
+		dest = rbuf[:length]
 
+		trimmedBytes := bytes.TrimRightFunc(dest, unicode.IsSpace)
+		printMu.Lock()
+		fmt.Println(string(trimmedBytes))
+		parseAndCall(string(trimmedBytes),0)
+		printMu.Unlock()
+	}
+}
+
+
+func boxMode(){
+	sock, sErr := net.Listen("tcp","127.0.0.1:64062")
+
+	if sErr != nil{
+		fmt.Println(sErr)
+	}
+
+	var aErr error = nil
+	var ace net.Conn
+	var printMu sync.Mutex
+	for aErr == nil{
+		ace, aErr = sock.Accept()
+
+		if aErr != nil{
+			printMu.Lock()
+			fmt.Println(aErr)
+			printMu.Unlock()
+		}
+
+		go boxHandler(ace, &printMu)
+	}
+}
 
 
 func main() {
@@ -3839,6 +3908,7 @@ func main() {
 	builtIns["appendRowFromList"]=appendRowFromListCSV
 	builtIns["findAllExactCSVToIndexList"]=findAllExactToIndexList
 	builtIns["headerColNumCSV"]=searchHeaderColNum
+	builtIns["lenList"]=lenList
 
 	/* doesn't do anyting systematic or scary so you can
 	* change it without worry just
@@ -3847,6 +3917,12 @@ func main() {
 	if fileExists("./init.tron") {
 		loadBlock([]string{"./init.tron", "init"})
 		parseAndCall("!init:", 0)
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "box"{
+		fmt.Println("serving code execution at 64062")
+		boxMode()
+		os.Exit(0)
 	}
 
 	var recentDefName string = "main"
