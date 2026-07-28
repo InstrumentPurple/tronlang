@@ -170,3 +170,20 @@ simply
 ```
 
 now you can write scripts to control it on the network.
+
+like this
+
+```
+#!/usr/bin/python
+
+from socket import *
+import time
+
+sock = socket(AF_INET, SOCK_STREAM)
+
+sock.connect(("localhost",64062))
+sf=sock.makefile("w")
+sf.write("!stdout:cool\n")
+sf.flush()
+sf.write("!stdout:yellow\n")
+```
