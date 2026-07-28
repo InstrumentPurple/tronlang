@@ -177,7 +177,6 @@ like this
 #!/usr/bin/python
 
 from socket import *
-import time
 
 sock = socket(AF_INET, SOCK_STREAM)
 
