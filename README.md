@@ -1,5 +1,5 @@
 # tronlang
-Tronlang script interpreter written in Golang and C
+Tronlang script interpreter written in Golang and C. The language that does not sacrifice simplicity for features.
 
 CURRENTLY EXPERIMENTAL
 
