@@ -57,6 +57,7 @@ import "C"
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"encoding/xml"
@@ -67,17 +68,16 @@ import (
 	"maps"
 	"math"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
-	"unsafe"
-	"net"
-	"bytes"
-	"unicode"
 	"sync"
+	"unicode"
+	"unsafe"
 )
 
 var DEBUG bool = false
@@ -143,7 +143,7 @@ type csvEntity struct {
 	data    [][]string
 }
 
-type WebCSVEntity struct{
+type WebCSVEntity struct {
 	Head    []string
 	HasHead bool
 	Data    [][]string
@@ -165,37 +165,36 @@ type ListNode struct {
 }
 
 type List struct {
-	Head *ListNode
-	Tail **ListNode
+	Head  *ListNode
+	Tail  **ListNode
 	Count int64
 }
 
-func (subject *List) Init(){
+func (subject *List) Init() {
 	subject.Head = nil
 	subject.Tail = &(subject.Head)
-	subject.Count=int64(0)
+	subject.Count = int64(0)
 }
 
-func (subject *List) Insert(dataPtr *string){
+func (subject *List) Insert(dataPtr *string) {
 	newNode := &ListNode{Data: dataPtr}
 	*(subject.Tail) = newNode
 	subject.Tail = &(newNode.Next)
 	subject.Count++
 }
 
-func ListPrint_(cur *ListNode){
-	for cur != nil{
+func ListPrint_(cur *ListNode) {
+	for cur != nil {
 		fmt.Println(*(cur.Data))
 		cur = cur.Next
 	}
 }
 
-func (subject *List)ListPrint(){
-	if subject != nil{
+func (subject *List) ListPrint() {
+	if subject != nil {
 		ListPrint_(subject.Head)
 	}
 }
-
 
 func (vrt *gVertex) reset() {
 	vrt.dist = INFINITY
@@ -333,7 +332,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.79.5 (lower security then ever)"
+	VERSION = "v0.79.7 (Pineapple turnover cake)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -400,7 +399,7 @@ var ZERO *big.Int = big.NewInt(0)
 // factorial
 func fact_cancel(at, n *big.Int) *big.Int {
 	result := big.NewInt(1.0)
-	if n.Cmp(at) == -1{
+	if n.Cmp(at) == -1 {
 		return ZERO
 	}
 
@@ -471,7 +470,7 @@ func evaluateRPN(expression string) (float64, error) {
 				r := big.NewInt(int64(operand2))
 				if n.Cmp(r) == 0 { //this is a hack to fix broken bicoef
 					result = 1.0
-				} else if(int64(operand1) >= int64(operand2)) {
+				} else if int64(operand1) >= int64(operand2) {
 					result, _ = (bicoef(n, r)).Float64()
 				} else {
 					return 0, fmt.Errorf("n must be greater than or equal too: %s", token)
@@ -641,8 +640,10 @@ func getArgs(content string) []string {
 func parseDeref(args *[]string) {
 	//how to specify variables not just text
 	for i, arg := range *args {
-		if strings.Contains(arg, "deref:") && !strings.Contains(arg, " ") {
-			varb := (strings.Split(arg, "deref:"))[1]
+		working := strings.Split(arg, "deref:")
+		varb := ""
+		if len(working) == 2 { /* just one deref: */
+			varb = working[len(working)-1]
 
 			gs, ins := strTbl[varb]
 			grb, inrb := rootBeer[varb]
@@ -659,7 +660,18 @@ func parseDeref(args *[]string) {
 			if !ins && !inrb && !inb {
 				fmt.Println("name error")
 			}
-
+		} else if len(working) > 2 {
+			tmp := working[len(working)-1]
+			for j := 0; j < len(working)-1; j++ {
+				varb = tmp
+				gs, ins := strTbl[varb]
+				tmp = gs
+				if ins {
+					(*args)[i] = gs
+				} else {
+					fmt.Println("name error")
+				}
+			}
 		}
 	}
 
@@ -714,7 +726,7 @@ func doSourceLoop(content string) bool {
 						args = fsc.Text()
 
 						cmd := callPart + ":" + args
-						if !suppressSrcLoopsOutput{
+						if !suppressSrcLoopsOutput {
 							fmt.Println(cmd)
 						}
 						parseAndCall(cmd, 0)
@@ -729,7 +741,6 @@ func doSourceLoop(content string) bool {
 	}
 	return false
 }
-
 
 // the callstack take 2
 func run(blank []string) {
@@ -787,7 +798,7 @@ startLoop:
 				finLine := doSourceLoop(line)
 				if finLine {
 					iptr++
-					continue;
+					continue
 					//callStack[len(callStack)-1].stptr = iptr + 1
 					//goto startLoop
 				}
@@ -884,7 +895,7 @@ func parseAndCall(content string, useless int64) bool {
 	//TODO: remove whitespace from begining of content
 
 	if re["validCall"].MatchString(content) {
-		if strings.Count(content,"\"") % 2 == 1{
+		if strings.Count(content, "\"")%2 == 1 {
 			fmt.Println("Odd number of quotes found.")
 			return false
 		}
@@ -910,7 +921,7 @@ func parseAndCall(content string, useless int64) bool {
 					args = fsc.Text()
 
 					cmd := callPart + ":" + args
-					if !suppressSrcLoopsOutput{
+					if !suppressSrcLoopsOutput {
 						fmt.Println(cmd)
 					}
 					parseAndCall(cmd, 0)
@@ -1435,13 +1446,13 @@ func push(args []string) {
 }
 
 func call(args []string) {
-	if len(args) < 1{
+	if len(args) < 1 {
 		fmt.Println("provide your function name and your arguments to that function")
 		return
 	}
 	push(args)
 	_, inb := builtIns[args[0]]
-	if !inb{
+	if !inb {
 		run([]string{})
 	}
 }
@@ -2207,7 +2218,7 @@ func bins(args []string) {
 	if inerr {
 		got := binSearch(&(tbl.data), 0, int64(len(tbl.data)), val, int64(col))
 		fmt.Print("index = ", got, "\n")
-		strInd := strconv.FormatInt(got,10)
+		strInd := strconv.FormatInt(got, 10)
 		emit([]string{"bins", strInd})
 		if got != -1 && got < int64(len(tbl.data)) {
 			ptr := pourSlice(tbl.data[got])
@@ -2389,14 +2400,13 @@ func quitFn(args []string) {
 	os.Exit(0)
 }
 
-func normalCSVEtoWebCSVE(table *csvEntity)*WebCSVEntity{
-return &WebCSVEntity{
-	Head: table.head,
-	HasHead: table.hasHead,
-	Data: table.data,
+func normalCSVEtoWebCSVE(table *csvEntity) *WebCSVEntity {
+	return &WebCSVEntity{
+		Head:    table.head,
+		HasHead: table.hasHead,
+		Data:    table.data,
+	}
 }
-}
-
 
 func pourSlice(subj []string) string {
 	end := ""
@@ -2436,8 +2446,7 @@ func csvByIndex(args []string) {
 	}
 }
 
-
-func getKeysFromBuiltIns()[]string{
+func getKeysFromBuiltIns() []string {
 	total := make([]string, 0)
 	for key := range maps.Keys(builtIns) {
 		total = append(total, key)
@@ -2445,7 +2454,6 @@ func getKeysFromBuiltIns()[]string{
 
 	return total
 }
-
 
 func getKeysFromShortTbls() []string {
 	total := make([]string, 0)
@@ -2456,7 +2464,7 @@ func getKeysFromShortTbls() []string {
 	return total
 }
 
-func getKeysFromCSVTbls() []string{
+func getKeysFromCSVTbls() []string {
 	total := make([]string, 0)
 	for key := range maps.Keys(csvTbl) {
 		total = append(total, key)
@@ -2511,7 +2519,7 @@ func findPrefixCSV(args []string) {
 				hasPrefix := C.prefix(cell, pre)
 				if bool(hasPrefix) {
 					psr := pourSlice(row)
-					fmt.Println(index,":",psr)
+					fmt.Println(index, ":", psr)
 					strInd := strconv.FormatInt(int64(index), 10)
 					emit([]string{"findPrefixCSV", strInd})
 				}
@@ -2548,7 +2556,6 @@ func findPostfixCSV(args []string) {
 	colIdF, _ := evaluateRPN(colNum)
 	colId := int(colIdF)
 
-
 	gotTbl, incsvtbl := csvTbl[tblName]
 	post := C.CString(postfixStr)
 	if incsvtbl && colId >= 0 {
@@ -2559,7 +2566,7 @@ func findPostfixCSV(args []string) {
 				hasPrefix := C.postfix(cell, post)
 				if bool(hasPrefix) {
 					psr := pourSlice(row)
-					fmt.Println(index,":",psr)
+					fmt.Println(index, ":", psr)
 					strInd := strconv.FormatInt(int64(index), 10)
 					emit([]string{"findPostfixCSV", strInd})
 				}
@@ -2800,7 +2807,7 @@ func showCSV(args []string) {
 }
 
 func getCellCSV(args []string) {
-	var tblName,strName, rowId, colId string
+	var tblName, strName, rowId, colId string
 	if len(args) < 4 {
 		fmt.Print("csv table name = ")
 		sc.Scan()
@@ -2859,34 +2866,34 @@ func Reverse(s string) string {
 	return string(runes) // Convert the reversed rune slice back to a string
 }
 
-func help(args []string){
+func help(args []string) {
 	nameList := getKeysFromBuiltIns()
 
-	reversedNames := make([][]string,0)
-	for _,name := range nameList{
+	reversedNames := make([][]string, 0)
+	for _, name := range nameList {
 		name = Reverse(name)
 		reversedNames = append(reversedNames, []string{name})
 	}
 
 	mergeSort(&reversedNames, int64(0))
 
-	forwardNames := make([][]string,0)
-	for _,name := range reversedNames{
+	forwardNames := make([][]string, 0)
+	for _, name := range reversedNames {
 		name[0] = Reverse(name[0])
 		forwardNames = append(forwardNames, []string{name[0]})
 	}
 
-	for _, name := range forwardNames{
+	for _, name := range forwardNames {
 		fmt.Println(name[0])
 	}
 }
 
-func silenceSrc(args []string){
+func silenceSrc(args []string) {
 	suppressSrcLoopsOutput = true
 
 }
 
-func addHeaderCSV(args []string){
+func addHeaderCSV(args []string) {
 	var tblName string
 	if len(args) < 2 {
 		fmt.Print("supply your csv table name and your headers after.")
@@ -2903,11 +2910,9 @@ func addHeaderCSV(args []string){
 	}
 }
 
-
-
-func insertToList(args []string){
-	var tblName,datum string
-	if len(args) < 2{
+func insertToList(args []string) {
+	var tblName, datum string
+	if len(args) < 2 {
 		fmt.Print("List table name = ")
 		sc.Scan()
 		tblName = sc.Text()
@@ -2921,25 +2926,23 @@ func insertToList(args []string){
 		tblName = args[0]
 	}
 
-
 	args = args[1:]
-
 
 	tbl, intbl := listTbl[tblName]
 
-	if !intbl{
+	if !intbl {
 		fmt.Println("name error")
 		return
 	}
 
-	for _, strToInsert := range args{
+	for _, strToInsert := range args {
 		alloced := new(string)
 		*alloced = strToInsert
 		tbl.Insert(alloced)
 	}
 }
 
-func newList(args []string){
+func newList(args []string) {
 	var listName string
 	if len(args) < 1 {
 		fmt.Print("list name = ")
@@ -2954,7 +2957,7 @@ func newList(args []string){
 	listTbl[listName] = alloced
 }
 
-func listPrint(args []string){
+func listPrint(args []string) {
 	var tblName string
 	if len(args) < 1 {
 		fmt.Print("list name = ")
@@ -2965,24 +2968,24 @@ func listPrint(args []string){
 	}
 
 	got, in := listTbl[tblName]
-	if in{
+	if in {
 		got.ListPrint()
 	} else {
 		fmt.Println("name error")
 	}
 }
 
-func stripListCall(args []string){
-	var fnName,listName string
-	if len(args) < 2{
+func stripListCall(args []string) {
+	var fnName, listName string
+	if len(args) < 2 {
 		fmt.Print("function to call = ")
 		sc.Scan()
-		fnName=sc.Text()
+		fnName = sc.Text()
 		fmt.Print("list to be for each first argument (args:0) = ")
 		sc.Scan()
-		listName=sc.Text()
+		listName = sc.Text()
 	} else {
-		fnName,listName=args[0],args[1]
+		fnName, listName = args[0], args[1]
 	}
 
 	L, in := listTbl[listName]
@@ -2994,18 +2997,17 @@ func stripListCall(args []string){
 		return
 	}
 
-	if !indef  && !inbif {
+	if !indef && !inbif {
 		fmt.Println("function name error")
 		return
 	}
 
-
 	currentNode := L.Head
 	for currentNode != nil {
-		if currentNode.Data != nil{
+		if currentNode.Data != nil {
 			call([]string{fnName, *(currentNode.Data)})
-		} else{
-			if DEBUG{
+		} else {
+			if DEBUG {
 				fmt.Println("saw a wierd nil Data pointer in a list")
 			}
 		}
@@ -3013,26 +3015,26 @@ func stripListCall(args []string){
 	}
 }
 
-func reflectRowList(args []string){
+func reflectRowList(args []string) {
 	var tableName, rowId, listName string
 	if len(args) < 3 {
 		fmt.Print("csv table name = ")
 		sc.Scan()
-		tableName=sc.Text()
+		tableName = sc.Text()
 
 		fmt.Print("row number (index) (rootbeer expression) = ")
 		sc.Scan()
-		rowId=sc.Text()
+		rowId = sc.Text()
 
 		fmt.Print("new list name = ")
 		sc.Scan()
-		listName=sc.Text()
+		listName = sc.Text()
 	} else {
-		tableName, rowId, listName = args[0],args[1],args[2]
+		tableName, rowId, listName = args[0], args[1], args[2]
 	}
 
 	csvTblToDo, incsv := csvTbl[tableName]
-	if !incsv{
+	if !incsv {
 		fmt.Println("csv name error")
 		return
 	}
@@ -3043,38 +3045,38 @@ func reflectRowList(args []string){
 
 	rowNumF, err := evaluateRPN(rowId)
 	rowNum := int(rowNumF)
-	if err != nil || rowNum < 0 || rowNum >= len(csvTblToDo.data){
+	if err != nil || rowNum < 0 || rowNum >= len(csvTblToDo.data) {
 		fmt.Println("invalid row number")
 		return
 	}
 
 	i := 0
-	for i < len(csvTblToDo.data[rowNum]){
+	for i < len(csvTblToDo.data[rowNum]) {
 		alloced.Insert(&(csvTblToDo.data[rowNum][i]))
 		i++
 	}
 }
 
-func reflectColList(args []string){
+func reflectColList(args []string) {
 	var tableName, colId, listName string
 	if len(args) < 3 {
 		fmt.Print("csv table name = ")
 		sc.Scan()
-		tableName=sc.Text()
+		tableName = sc.Text()
 
 		fmt.Print("column number (rootbeer expression) = ")
 		sc.Scan()
-		colId=sc.Text()
+		colId = sc.Text()
 
 		fmt.Print("new list name = ")
 		sc.Scan()
-		listName=sc.Text()
+		listName = sc.Text()
 	} else {
-		tableName, colId, listName = args[0],args[1],args[2]
+		tableName, colId, listName = args[0], args[1], args[2]
 	}
 
 	csvTblToDo, incsv := csvTbl[tableName]
-	if !incsv{
+	if !incsv {
 		fmt.Println("csv name error")
 		return
 	}
@@ -3085,24 +3087,23 @@ func reflectColList(args []string){
 
 	colNumF, err := evaluateRPN(colId)
 	colNum := int(colNumF)
-	if err != nil || colNum < 0 || colNum >= len(csvTblToDo.data[0]){
+	if err != nil || colNum < 0 || colNum >= len(csvTblToDo.data[0]) {
 		fmt.Println("invalid row number")
 		return
 	}
 
 	i := 0
-	for i < len(csvTblToDo.data){
-		if len(csvTblToDo.data[i]) > colNum{
+	for i < len(csvTblToDo.data) {
+		if len(csvTblToDo.data[i]) > colNum {
 			alloced.Insert(&(csvTblToDo.data[i][colNum]))
 		}
 		i++
 	}
 }
 
-
-func printFn(args []string){
+func printFn(args []string) {
 	var fnName string
-	if len(args) < 1{
+	if len(args) < 1 {
 		fmt.Print("function name")
 		sc.Scan()
 		fnName = sc.Text()
@@ -3117,43 +3118,41 @@ func printFn(args []string){
 		return
 	}
 
-	for _, line := range lines{
+	for _, line := range lines {
 		fmt.Println(line)
 	}
 
 }
 
-
-func printFnNames(args []string){
-	for name,_ := range definedFunctions{
+func printFnNames(args []string) {
+	for name, _ := range definedFunctions {
 		fmt.Println(name)
 	}
 }
 
-
-func appendRowFromListCSV(args []string){
-	var destCSVTbl,srcLst string
+func appendRowFromListCSV(args []string) {
+	var destCSVTbl, srcLst string
 	if len(args) < 2 {
 		fmt.Print("destination csv table = ")
 		sc.Scan()
-		destCSVTbl=sc.Text()
+		destCSVTbl = sc.Text()
 
 		fmt.Print("list name = ")
 		sc.Scan()
-		srcLst=sc.Text()
+		srcLst = sc.Text()
 	} else {
 		destCSVTbl, srcLst = args[0], args[1]
 	}
 
 	tbl, in := csvTbl[destCSVTbl]
 
-	if !in{
+	if !in {
 		fmt.Println("csv name error")
 		return
 	}
 
 	lst, inlst := listTbl[srcLst]
-	if !inlst{
+	if !inlst {
 		fmt.Println("list name error")
 		return
 	}
@@ -3163,15 +3162,15 @@ func appendRowFromListCSV(args []string){
 		goodCheck = false
 	}
 
-	if goodCheck && lst.Count != int64(len(tbl.data[0])){
+	if goodCheck && lst.Count != int64(len(tbl.data[0])) {
 		fmt.Println("List must contain exactly the same amount of items as the number of csv columns")
 		return
 	}
 
-	workingSlice := make([]string,0)
+	workingSlice := make([]string, 0)
 	cur := lst.Head
 
-	for cur != nil{
+	for cur != nil {
 		workingSlice = append(workingSlice, *(cur.Data))
 		cur = cur.Next
 	}
@@ -3179,10 +3178,9 @@ func appendRowFromListCSV(args []string){
 	tbl.data = append(tbl.data, workingSlice)
 }
 
-
-func saveFn(args []string){
+func saveFn(args []string) {
 	var fnName, fpath string
-	if len(args) < 2{
+	if len(args) < 2 {
 		fmt.Print("function name = ")
 		sc.Scan()
 		fnName = sc.Text()
@@ -3191,10 +3189,10 @@ func saveFn(args []string){
 		sc.Scan()
 		fpath = sc.Text()
 	} else {
-		fnName, fpath = args[0],args[1]
+		fnName, fpath = args[0], args[1]
 	}
 
-	if fileExists(fpath){
+	if fileExists(fpath) {
 		fmt.Println("will not overwrite file " + fpath)
 		return
 	}
@@ -3207,19 +3205,18 @@ func saveFn(args []string){
 	}
 
 	fileh, ferr := os.Create(fpath)
-	if ferr != nil{
+	if ferr != nil {
 		fmt.Println(ferr)
 	}
 	defer fileh.Close()
 
-	for _,line := range lines {
-		fileh.Write([]byte(line+"\n"))
+	for _, line := range lines {
+		fileh.Write([]byte(line + "\n"))
 	}
 }
 
-
-func findAllExactToIndexList(args []string){
-	var tblName,term,lstName string
+func findAllExactToIndexList(args []string) {
+	var tblName, term, lstName string
 	if len(args) < 3 {
 		fmt.Print("CSV table name = ")
 		sc.Scan()
@@ -3232,11 +3229,11 @@ func findAllExactToIndexList(args []string){
 		sc.Scan()
 		lstName = sc.Text()
 	} else {
-		tblName,term,lstName = args[0], args[1], args[2]
+		tblName, term, lstName = args[0], args[1], args[2]
 	}
 
 	lst, inlst := listTbl[lstName]
-	if !inlst{
+	if !inlst {
 		lst = &List{}
 		lst.Init()
 		listTbl[lstName] = lst
@@ -3259,8 +3256,8 @@ func findAllExactToIndexList(args []string){
 	}
 }
 
-func rbToIntStr(args []string){
-	var rbName,destStringName string
+func rbToIntStr(args []string) {
+	var rbName, destStringName string
 	if len(args) < 2 {
 		fmt.Print("rootbeer name = ")
 		sc.Scan()
@@ -3273,8 +3270,8 @@ func rbToIntStr(args []string){
 		rbName, destStringName = args[0], args[1]
 	}
 
-	rb ,inrb := rootBeer[rbName]
-	if !inrb{
+	rb, inrb := rootBeer[rbName]
+	if !inrb {
 		fmt.Println("rootbeer does not exist")
 		return
 	}
@@ -3283,24 +3280,22 @@ func rbToIntStr(args []string){
 	strTbl[destStringName] = intStr
 }
 
-
-func searchHeaderColNum(args []string){
-	var tableName,subj string
+func searchHeaderColNum(args []string) {
+	var tableName, subj string
 	if len(args) < 2 {
 		fmt.Print("CSV table name = ")
 		sc.Scan()
 		tableName = sc.Text()
 
-
 		fmt.Print("header feild = ")
 		sc.Scan()
 		subj = sc.Text()
 	} else {
-		tableName,subj  = args[0], args[1]
+		tableName, subj = args[0], args[1]
 	}
 
 	tbl, incsv := csvTbl[tableName]
-	if !incsv{
+	if !incsv {
 		fmt.Println("table does not exist")
 		return
 	}
@@ -3308,10 +3303,9 @@ func searchHeaderColNum(args []string){
 	fmt.Println(linsearch(subj, tbl.head))
 }
 
-
-func lenList(args []string){
+func lenList(args []string) {
 	var name string
-	if len(args) < 1{
+	if len(args) < 1 {
 		fmt.Print("list name = ")
 		sc.Scan()
 		name = sc.Text()
@@ -3323,15 +3317,58 @@ func lenList(args []string){
 
 	if in {
 		fmt.Println(found.Count)
-		got := strconv.FormatInt(found.Count,10)
+		got := strconv.FormatInt(found.Count, 10)
 		emit([]string{"lenList", got})
 	} else {
 		fmt.Println("Name does not exist!")
 	}
 }
 
+func yogaAux(args []string) {
+	var path string
+	if len(args) < 1 {
+		fmt.Print("file path to the .aux.json = ")
+		sc.Scan()
+		path = sc.Text()
+	} else {
+		path = args[0]
+	}
 
+	fileContents, _ := os.ReadFile(path)
 
+	gTmp := map[string]*gVertex{}
+	//&worldGraph.vertexs
+
+	err := json.Unmarshal(fileContents, &gTmp)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	for _, val := range gTmp {
+		for key2, val2 := range val.Aux {
+			vert, inverts := worldGraph.vertexs[val.Name]
+			if inverts {
+				vert.Aux[key2] = val2
+			} else {
+				fmt.Println("key error. Did you forget to use addEdge?")
+				return
+			}
+		}
+	}
+
+	fmt.Println("absorbed aux success")
+}
+
+func nukeWorldGraph(args []string) {
+	worldGraph = Graph{vertexs: map[string]*gVertex{}}
+	runtime.GC()
+}
+
+func nukeWt(args []string) {
+	worldTree = nil
+	runtime.GC()
+}
 
 //////////////////////////
 // http web app functions
@@ -3455,36 +3492,36 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 			},
 		},
 
-			"quack": {
-				Msg: "You're too young to know a philosopher from a quack! I've been wondering all day. just going everywhere and thinking everything. I think I'm on to a good idea!",
-				Options: []Option{
-					{Opt: "Your new idea? tell me more!", Next: "idea"},
-					{Opt: "I don't want to hear anymore of your gibberish.", Next: "no_more"},
-					{Opt: "Poor fellow. Probably been a while since you've had a smoke.", Next: "smoke"},
-				},
+		"quack": {
+			Msg: "You're too young to know a philosopher from a quack! I've been wondering all day. just going everywhere and thinking everything. I think I'm on to a good idea!",
+			Options: []Option{
+				{Opt: "Your new idea? tell me more!", Next: "idea"},
+				{Opt: "I don't want to hear anymore of your gibberish.", Next: "no_more"},
+				{Opt: "Poor fellow. Probably been a while since you've had a smoke.", Next: "smoke"},
 			},
+		},
 
-				"idea": {
-					Msg: "You see first we get together all of the world's books and then we get a nuclear reactor and tanks of liquid nitrogen and the worlds formost supper computer. You see the nuclear reactor is for the supercomputer's power source and the liquid nitrogen is for when we overclock the super computer. We get the super computer to read all the books then it can tell us the answers of the universe and every thing!",
-					Options: []Option{
-						{Opt: "Your just a crazy old man.", Next: "the_story_continues"},
-						{Opt: "Wow maybe this might just work!", Next: "might_work"},
-					},
-				},
+		"idea": {
+			Msg: "You see first we get together all of the world's books and then we get a nuclear reactor and tanks of liquid nitrogen and the worlds formost supper computer. You see the nuclear reactor is for the supercomputer's power source and the liquid nitrogen is for when we overclock the super computer. We get the super computer to read all the books then it can tell us the answers of the universe and every thing!",
+			Options: []Option{
+				{Opt: "Your just a crazy old man.", Next: "the_story_continues"},
+				{Opt: "Wow maybe this might just work!", Next: "might_work"},
+			},
+		},
 
-					"might_work": {
-						Msg: "You know I been feeling something eery. I thinks it's those elves.",
-						Options: []Option{
-							{Opt: "I see.", Next: "the_story_continues"},
-							{Opt: "No such thing.", Next: "the_story_continues"},
-						},
-					},
+		"might_work": {
+			Msg: "You know I been feeling something eery. I thinks it's those elves.",
+			Options: []Option{
+				{Opt: "I see.", Next: "the_story_continues"},
+				{Opt: "No such thing.", Next: "the_story_continues"},
+			},
+		},
 
-				"no_more": {
-					Msg: "A fellow like you should gleaming seas and perishing pearls. Worlds of wonder away away away!",
-					Options: []Option{
-						{Opt: "Respect", Next: "the_story_continues"},
-					},
+		"no_more": {
+			Msg: "A fellow like you should gleaming seas and perishing pearls. Worlds of wonder away away away!",
+			Options: []Option{
+				{Opt: "Respect", Next: "the_story_continues"},
+			},
 		},
 
 		"smoke": {
@@ -3502,13 +3539,13 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 			},
 		},
 
-			"dino_argu": {
+		"dino_argu": {
 
-				Msg: "The dinosuars have been ceasing our land and bothering our women. It's not their's but they walk around like they own the place. The king of blanklandia Isn't doing anything about it!",
-				Options: []Option{
-					{Opt: "whelp nothing you can do", Next: "the_story_continues"},
-				},
+			Msg: "The dinosuars have been ceasing our land and bothering our women. It's not their's but they walk around like they own the place. The king of blanklandia Isn't doing anything about it!",
+			Options: []Option{
+				{Opt: "whelp nothing you can do", Next: "the_story_continues"},
 			},
+		},
 		/* all options lead here */
 		"the_story_continues": {
 			Msg: "Anyway. The wizards of Callenber are calling for a Winter meeting. I might go just to see what they think of the current state of things. Would you like to go along?",
@@ -3518,13 +3555,12 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 			},
 		},
 
-			"become_hunter_gatherer":{
-				Msg:"'Fine we can just stick around here and pick some berries. What a beutiful day!' The sun was bright but it was slightly chill in the forest clearing.",
-				Options:[]Option{
-					{Opt:"Let's hunt elk!",Next:"placer"},
-
-				},
+		"become_hunter_gatherer": {
+			Msg: "'Fine we can just stick around here and pick some berries. What a beutiful day!' The sun was bright but it was slightly chill in the forest clearing.",
+			Options: []Option{
+				{Opt: "Let's hunt elk!", Next: "placer"},
 			},
+		},
 
 		// side quest one of two from the_story_continues
 		"adventure_one": {
@@ -3550,12 +3586,12 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 			},
 		},
 
-			"eat": {
-				Msg: "Here in Blanklandia we eat the staples. Don't expect a 5 star meal.",
-				Options: []Option{
-					{Opt: "okay", Next: "important"},
-				},
+		"eat": {
+			Msg: "Here in Blanklandia we eat the staples. Don't expect a 5 star meal.",
+			Options: []Option{
+				{Opt: "okay", Next: "important"},
 			},
+		},
 
 		"wiz_leader": {
 			Msg: "Their leader's name is Bradic and he is quite the heavy man. He became the leader 2 years ago when Partil died of a lonely heart.",
@@ -3566,153 +3602,137 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 			},
 		},
 
-			"thicc":{
-				Msg:"He wasn't just thicc he had spirit and determination about eating. Soaring sky lines and ample feasts!",
-				Options:[]Option{
-					{Opt:"okay",Next:"wiz_leader"},
-
-				},
+		"thicc": {
+			Msg: "He wasn't just thicc he had spirit and determination about eating. Soaring sky lines and ample feasts!",
+			Options: []Option{
+				{Opt: "okay", Next: "wiz_leader"},
 			},
+		},
 
-				"more_on_leaders": {
-					Msg: "Partil was getting old but when he was in his 50s he was known to be the greatest of all wiards. Bradic is more charismatic and his ideas are actually making those wizards money for their services now that he is in control.",
-					Options: []Option{
-						{Opt: "okay", Next: "wiz_leader"},
-					},
-				},
+		"more_on_leaders": {
+			Msg: "Partil was getting old but when he was in his 50s he was known to be the greatest of all wiards. Bradic is more charismatic and his ideas are actually making those wizards money for their services now that he is in control.",
+			Options: []Option{
+				{Opt: "okay", Next: "wiz_leader"},
+			},
+		},
 
-				"tragedy":{
-					Msg:"That was Partil's only flaw. He was a great man.",
-					Options:[]Option{
-						{Opt:"That's good. Thank you.",Next:"Yeeho"},
-						{Opt:"That got me thinking about something. If Partil was such a great wizard then why couldn't he find a date to sooth his broken wing.",Next:"poor_partil"},
-					},
-				},
+		"tragedy": {
+			Msg: "That was Partil's only flaw. He was a great man.",
+			Options: []Option{
+				{Opt: "That's good. Thank you.", Next: "Yeeho"},
+				{Opt: "That got me thinking about something. If Partil was such a great wizard then why couldn't he find a date to sooth his broken wing.", Next: "poor_partil"},
+			},
+		},
 
-				"Yeeho":{
-					Msg:"YEEHO yon fool! You can't catch me!",
-					Options:[]Option{
-						{Opt:"I bet I can catch you!",Next:"running"},
+		"Yeeho": {
+			Msg: "YEEHO yon fool! You can't catch me!",
+			Options: []Option{
+				{Opt: "I bet I can catch you!", Next: "running"},
+			},
+		},
 
-					},
-				},
+		"running": {
+			Msg: "He ran and he ran and you caught him. Good job.",
+			Options: []Option{
+				{Opt: "What kind of food did Partil like to eat?", Next: "poor_partil"},
+			},
+		},
+		"poor_partil": {
+			Msg: "He loved dates with all their fiber and nutritional value but that's beside the point, youngin'. We should start off on our journey. Now don't worry we'll get you some coleslaw from Georgia and a coke. First let me but this big dip in.",
+			Options: []Option{
+				{Opt: "That coleslaw is all the way from goegia? it's probably slimy by now.", Next: "the_slaw"},
+				{Opt: "Is the Pace Salsa Con queso TM !??", Next: "big_dip"},
+				{Opt: "What's that shadow over there!?!", Next: "what_is_shadow"},
+			},
+		},
 
+		"big_dip": {
+			Msg: "No this is tobacco for Mossia. Good golden leaf.",
+			Options: []Option{
+				{Opt: "I'm a Liberal know-it-all and I think that is a discusting habbit!", Next: "placer"},
+			},
+		},
 
-				"running":{
-					Msg:"He ran and he ran and you caught him. Good job.",
-					Options:[]Option{
-						{Opt:"What kind of food did Partil like to eat?",Next:"poor_partil"},
+		"what_is_shadow": {
+			Msg: "Oh my God! Run! It's an Orc!",
+			Options: []Option{
+				{Opt: "Run into the forest in a panicked rush!", Next: "placer"},
+				{Opt: "That's not an Orc it's an Orchestra!", Next: "orchestra"},
+			},
+		},
 
-					},
-				},
-					"poor_partil":{
-						Msg:"He loved dates with all their fiber and nutritional value but that's beside the point, youngin'. We should start off on our journey. Now don't worry we'll get you some coleslaw from Georgia and a coke. First let me but this big dip in.",
-						Options:[]Option{
-							{Opt:"That coleslaw is all the way from goegia? it's probably slimy by now.",Next:"the_slaw"},
-							{Opt:"Is the Pace Salsa Con queso TM !??",Next:"big_dip"},
-							{Opt:"What's that shadow over there!?!",Next:"what_is_shadow"},
-						},
-					},
+		"orchestra": {
+			Msg: "Oh what a beutiful arrangement of fine men and women in such fancy clothing too. Let's eat some coleslaw and take a listen to them!",
+			Options: []Option{
+				{Opt: "I'm sure glad i didn't have to run again.", Next: "the_slaw"},
+			},
+		},
 
-						"big_dip":{
-							Msg:"No this is tobacco for Mossia. Good golden leaf.",
-							Options:[]Option{
-								{Opt:"I'm a Liberal know-it-all and I think that is a discusting habbit!",Next:"placer"},
+		"the_slaw": {
+			Msg: "These Here coleslaw tubs are straight from Slawwich, Georgia. There's nothing better so be greatful.",
+			Options: []Option{
+				{Opt: "Eat slaw like a champion", Next: "eat_slaw"},
+			},
+		},
 
-							},
-						},
+		"eat_slaw": {
+			Msg: "'I guess we better leave then.' We bumbled and humbled and hummied all the way a few feet away. 'Travel is taxing so we better travel slow'",
+			Options: []Option{
+				{Opt: "Go a few more feet.", Next: "make_progress_after_slaw"},
+			},
+		},
 
+		"make_progress_after_slaw": {
+			Msg: "Bibbibble and gleamMMmMMMMmmMing seas... you say: 'hey that slaw turned out prety good I think. Good as KFC (TM) at least. A few more feet. A few more feet.'",
+			Options: []Option{
+				{Opt: "Take a couple strides", Next: "couple_strides"},
+			},
+		},
 
-						"what_is_shadow":{
-						Msg:"Oh my God! Run! It's an Orc!",
-						Options:[]Option{
-							{Opt:"Run into the forest in a panicked rush!",Next:"placer"},
-							{Opt:"That's not an Orc it's an Orchestra!",Next:"orchestra"},
-						},
-						},
+		"couple_strides": {
+			Msg: "Gaaaaah! We'll take hours to get to the wizards in Callenber at this rate! What should we do?",
+			Options: []Option{
+				{Opt: "Just get a horse and carraige.", Next: "just_go_already"},
+				{Opt: "I like it the slow way.", Next: "nice_n_slow"},
+			},
+		},
 
-						"orchestra":{
-							Msg:"Oh what a beutiful arrangement of fine men and women in such fancy clothing too. Let's eat some coleslaw and take a listen to them!",
-							Options:[]Option{
-								{Opt:"I'm sure glad i didn't have to run again.",Next:"the_slaw"},
+		"nice_n_slow": {
+			Msg: "They then went on a short walk in the right direction and then they found themsleves passing a stable by sure coincidence. 'Way Ho Yon strangers! Are you looking for a ride somewhere?'",
+			Options: []Option{
+				{Opt: "Actually that sounds like a good idea. I'm already tired. ", Next: "take_ride_with_peanut"},
+			},
+		},
 
-							},
-						},
+		"just_go_already": {
+			Msg: "All right now let's find us a some horses or something. I know of a stable i saw when wondering the other day. It shouldn't take us long.",
+			Options: []Option{
+				{Opt: "Finally.", Next: "find_stable"},
+			},
+		},
 
-						"the_slaw":{
-							Msg:"These Here coleslaw tubs are straight from Slawwich, Georgia. There's nothing better so be greatful.",
-							Options:[]Option{
-								{Opt:"Eat slaw like a champion",Next:"eat_slaw"},
+		"find_stable": {
+			Msg: "(In a thick smoke's voice) Welcome to the barnesley stables where we getcha going. My name is Werv and I'll be your driver this evening. So where are you headed?",
+			Options: []Option{
+				{Opt: "We have fare for two to Callenber. We're in no rush.", Next: "take_ride_with_werv"},
+			},
+		},
 
-							},
-						},
+		"take_ride_with_peanut": {
+			Msg: "We can get there at about sundown how about that? My name is Peanut and I will be your driver today. Board the cairage. Hope you brought jackets because it might take you hours to find a good hotel once we are in Callenber. Now that Bradic is in control the inns have been slammed at this time of year. It's like the wizard's trade show now. More like a convention than a spiritual meeting these days.",
+			Options: []Option{
+				{Opt: "I heard they have a firework show too!", Next: "placer"},
+			},
+		},
 
-						"eat_slaw":{
-							Msg:"'I guess we better leave then.' We bumbled and humbled and hummied all the way a few feet away. 'Travel is taxing so we better travel slow'",
-							Options:[]Option{
-								{Opt:"Go a few more feet.",Next:"make_progress_after_slaw"},
-
-							},
-						},
-
-						"make_progress_after_slaw":{
-							Msg:"Bibbibble and gleamMMmMMMMmmMing seas... you say: 'hey that slaw turned out prety good I think. Good as KFC (TM) at least. A few more feet. A few more feet.'",
-							Options:[]Option{
-								{Opt:"Take a couple strides",Next:"couple_strides"},
-
-							},
-						},
-
-						"couple_strides":{
-							Msg:"Gaaaaah! We'll take hours to get to the wizards in Callenber at this rate! What should we do?",
-							Options:[]Option{
-								{Opt:"Just get a horse and carraige.",Next:"just_go_already"},
-								{Opt:"I like it the slow way.",Next:"nice_n_slow"},
-
-							},
-						},
-
-
-						"nice_n_slow":{
-							Msg:"They then went on a short walk in the right direction and then they found themsleves passing a stable by sure coincidence. 'Way Ho Yon strangers! Are you looking for a ride somewhere?'",
-							Options:[]Option{
-								{Opt:"Actually that sounds like a good idea. I'm already tired. ",Next:"take_ride_with_peanut"},
-
-							},
-						},
-
-
-						"just_go_already":{
-							Msg:"All right now let's find us a some horses or something. I know of a stable i saw when wondering the other day. It shouldn't take us long.",
-							Options:[]Option{
-								{Opt:"Finally.",Next:"find_stable"},
-
-							},
-						},
-
-						"find_stable":{
-							Msg:"(In a thick smoke's voice) Welcome to the barnesley stables where we getcha going. My name is Werv and I'll be your driver this evening. So where are you headed?",
-							Options:[]Option{
-								{Opt:"We have fare for two to Callenber. We're in no rush.",Next:"take_ride_with_werv"},
-							},
-						},
-
-
-						"take_ride_with_peanut":{
-							Msg:"We can get there at about sundown how about that? My name is Peanut and I will be your driver today. Board the cairage. Hope you brought jackets because it might take you hours to find a good hotel once we are in Callenber. Now that Bradic is in control the inns have been slammed at this time of year. It's like the wizard's trade show now. More like a convention than a spiritual meeting these days.",
-							Options:[]Option{
-								{Opt:"I heard they have a firework show too!",Next:"placer"},
-							},
-						},
-
-						"take_ride_with_werv":{
-							Msg:"'That's just a 35 minute trip with our team. We should get there just before dark. Climb on! Would you like to hear a tale? How about The Two Kings of the Great West or t'",
-							Options:[]Option{
-								{Opt:"Let's hear Two Kings it's been a while.",Next:"placer"},
-								{Opt:"Let's hear ", Next:"placer"},
-							},
-						},
-					/*
+		"take_ride_with_werv": {
+			Msg: "'That's just a 35 minute trip with our team. We should get there just before dark. Climb on! Would you like to hear a tale? How about The Two Kings of the Great West or t'",
+			Options: []Option{
+				{Opt: "Let's hear Two Kings it's been a while.", Next: "placer"},
+				{Opt: "Let's hear ", Next: "placer"},
+			},
+		},
+		/*
 			"":{
 					Msg:"",
 					Options:[]Option{
@@ -3735,56 +3755,55 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func webCSVView(rw http.ResponseWriter, req *http.Request){
+func webCSVView(rw http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 
 	tableName := req.FormValue("table")
 
 	tbl, intbl := csvTbl[tableName]
 
-	if intbl{
+	if intbl {
 		webCsv := normalCSVEtoWebCSVE(tbl)
 		temp, _ := template.ParseFiles("./csv_view.html.tmpl")
-		temp.Execute(rw,webCsv)
+		temp.Execute(rw, webCsv)
 	} else {
 		rw.Write([]byte("<h1>error could not find table</h1>"))
 	}
 }
 
-func boxHandler(boinger net.Conn, printMu *sync.Mutex){
-	rbuf := make([]byte,4096)
+func boxHandler(boinger net.Conn, printMu *sync.Mutex) {
+	rbuf := make([]byte, 4096)
 	for true {
 		length, readErr := boinger.Read(rbuf)
-		if readErr != nil{
+		if readErr != nil {
 			fmt.Println(readErr)
-			break;
+			break
 		}
-		dest := make([]byte,length)
+		dest := make([]byte, length)
 		dest = rbuf[:length]
 
 		trimmedBytes := bytes.TrimRightFunc(dest, unicode.IsSpace)
 		printMu.Lock()
 		fmt.Println(string(trimmedBytes))
-		parseAndCall(string(trimmedBytes),0)
+		parseAndCall(string(trimmedBytes), 0)
 		printMu.Unlock()
 	}
 }
 
+func boxMode() {
+	sock, sErr := net.Listen("tcp", "127.0.0.1:64062")
 
-func boxMode(){
-	sock, sErr := net.Listen("tcp","127.0.0.1:64062")
-
-	if sErr != nil{
+	if sErr != nil {
 		fmt.Println(sErr)
 	}
 
 	var aErr error = nil
 	var ace net.Conn
 	var printMu sync.Mutex
-	for aErr == nil{
+	for aErr == nil {
 		ace, aErr = sock.Accept()
 
-		if aErr != nil{
+		if aErr != nil {
 			printMu.Lock()
 			fmt.Println(aErr)
 			printMu.Unlock()
@@ -3793,7 +3812,6 @@ func boxMode(){
 		go boxHandler(ace, &printMu)
 	}
 }
-
 
 func main() {
 	fmt.Println("Tronlang " + VERSION)
@@ -3882,13 +3900,12 @@ func main() {
 	builtIns["null"] = nullFn
 	builtIns["nil"] = nullFn
 	builtIns["pristineRb"] = pristineNums // you nuked but you want e and pi back
-	builtIns["help"]=help
-	builtIns["silenceSrc"]=silenceSrc
-	builtIns["printFn"]=printFn
-	builtIns["printFnNames"]=printFnNames
-
-	builtIns["saveFn"]=saveFn
-	builtIns["rbToIntStr"]=rbToIntStr
+	builtIns["help"] = help
+	builtIns["silenceSrc"] = silenceSrc
+	builtIns["printFn"] = printFn
+	builtIns["printFnNames"] = printFnNames
+	builtIns["saveFn"] = saveFn
+	builtIns["rbToIntStr"] = rbToIntStr
 
 	//these will be subject to change till v0.8
 	builtIns["findPrefixCSV"] = findPrefixCSV
@@ -3898,18 +3915,22 @@ func main() {
 	builtIns["cropCSV"] = cropCSV
 	builtIns["showCSV"] = showCSV
 	builtIns["getCellCSV"] = getCellCSV
-	builtIns["addHeaderCSV"]=addHeaderCSV
-	builtIns["insertList"]=insertToList
+	builtIns["addHeaderCSV"] = addHeaderCSV
+	builtIns["insertList"] = insertToList
 	builtIns["newList"] = newList
 	builtIns["printList"] = listPrint
-	builtIns["applyList"]=stripListCall
-	builtIns["reflectRowList"]=reflectRowList
-	builtIns["reflectColList"]=reflectColList
-	builtIns["appendRowFromList"]=appendRowFromListCSV
-	builtIns["findAllExactCSVToIndexList"]=findAllExactToIndexList
-	builtIns["headerColNumCSV"]=searchHeaderColNum
-	builtIns["lenList"]=lenList
+	builtIns["applyList"] = stripListCall
+	builtIns["reflectRowList"] = reflectRowList
+	builtIns["reflectColList"] = reflectColList
+	builtIns["appendRowFromList"] = appendRowFromListCSV
+	builtIns["findAllExactCSVToIndexList"] = findAllExactToIndexList
+	builtIns["headerColNumCSV"] = searchHeaderColNum
+	builtIns["lenList"] = lenList
 
+	// builtIns["newCSV"] = newCSV
+	builtIns["yogaAux"] = yogaAux
+	builtIns["nukeWorldGraph"] = nukeWorldGraph
+	builtIns["nukeWt"] = nukeWt
 	/* doesn't do anyting systematic or scary so you can
 	* change it without worry just
 	* some place to put all your most used stuff. Like
@@ -3919,7 +3940,7 @@ func main() {
 		parseAndCall("!init:", 0)
 	}
 
-	if len(os.Args) > 1 && os.Args[1] == "box"{
+	if len(os.Args) > 1 && os.Args[1] == "box" {
 		fmt.Println("serving code execution at 64062")
 		boxMode()
 		os.Exit(0)
@@ -3958,7 +3979,7 @@ func main() {
 								break
 							} else {
 								ktxt := sc.Text()
-								rootBeer[ktxt]=0.0
+								rootBeer[ktxt] = 0.0
 								k = append(k, ktxt)
 
 								fmt.Print("rootbeer expression = ")
