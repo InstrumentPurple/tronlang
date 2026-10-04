@@ -332,7 +332,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.79.7 (Pineapple turnover cake)"
+	VERSION = "v0.79.8"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -393,8 +393,61 @@ var fileCacheWeb = map[string]([]byte){}
 
 var suppressSrcLoopsOutput = false
 
+type CycleCounter struct {
+	succ    func(*CycleCounter) string
+	current int64
+	init    int64
+	max     int64
+}
+
+var cycles = map[string](*CycleCounter){}
+
+var MAX_WEEKDAY = int64(7)
+var MAX_MONTH = int64(12)
+
 var ONE *big.Int = big.NewInt(1)
 var ZERO *big.Int = big.NewInt(0)
+
+func MonthSucc(cur *CycleCounter) string {
+	months := []string{"January",
+		"Febuary",
+		"March",
+		"April",
+		"May",
+		"June",
+		"July",
+		"August",
+		"September",
+		"October",
+		"November",
+		"December",
+	}
+	got := ((cur.init + cur.current) % cur.max)
+	cur.current++
+	return months[got%cur.max]
+}
+
+func weekDaySucc(cur *CycleCounter) string {
+	months := []string{
+		"Sunday",
+		"Monday",
+		"Tuesday",
+		"Wendsday",
+		"Thursday",
+		"Friday",
+		"Saturday",
+	}
+	got := ((cur.init + cur.current) % cur.max)
+	cur.current++
+	return months[got%cur.max]
+}
+
+func intSucc(cur *CycleCounter) string {
+	got := ((cur.init + cur.current) % cur.max)
+	cur.current++
+	has := strconv.FormatInt(got, 10)
+	return has
+}
 
 // factorial
 func fact_cancel(at, n *big.Int) *big.Int {
@@ -648,6 +701,7 @@ func parseDeref(args *[]string) {
 			gs, ins := strTbl[varb]
 			grb, inrb := rootBeer[varb]
 			gb, inb := boole[varb]
+			gc, inc := cycles[varb]
 
 			if ins {
 				(*args)[i] = gs
@@ -655,9 +709,11 @@ func parseDeref(args *[]string) {
 				(*args)[i] = fmt.Sprintf("%f", grb)
 			} else if inb {
 				(*args)[i] = fmt.Sprintf("%f", boolToFloat64(gb))
+			} else if inc {
+				(*args)[i] = (gc.succ)(gc)
 			}
 
-			if !ins && !inrb && !inb {
+			if !ins && !inrb && !inb && !inc {
 				fmt.Println("name error")
 			}
 		} else if len(working) > 2 {
@@ -690,6 +746,7 @@ func parseToArgsSlice(argPart string) []string {
 	return args
 }
 
+/* see doSourceLoopParseAndCall(content) */
 func doSourceLoop(content string) bool {
 	if re["validCall"].MatchString(content) {
 		got := strings.Replace(content, ":", "[seperator]", 1) //needs to be unique
@@ -700,40 +757,63 @@ func doSourceLoop(content string) bool {
 			callPart, argPart := sep[0], sep[1]
 
 			if re["sourceLoop"].MatchString(argPart) {
-				path := strings.TrimPrefix(argPart, "(src ")
-				path = strings.Trim(path, ")")
+				sourceName := strings.TrimPrefix(argPart, "(src ")
+				sourceName = strings.Trim(sourceName, ")")
 
-				file, err := os.Open(path)
-				if err != nil {
-					fmt.Println(err)
-					return true
-				}
-				defer file.Close()
-
-				fsc := bufio.NewScanner(file)
-
-				fnName := strings.TrimPrefix(callPart, "!")
-
-				_, inDeffn := definedFunctions[fnName]
-
-				if inDeffn {
-					fmt.Println("A sourceloop on a user defined fn within a user defined fn doesn't work. Only on builtIns. Sorry. I have to squeeze my tiny 115 iq at the run routine and figure out what to do with the call stack.")
-
-					return true // will get run to ignor it
-				} else {
+				cy, incy := cycles[sourceName]
+				if incy {
+					/*
+					* if is cycle call successor function and
+					* then call fun with that argument.
+					* convert to string
+					 */
 					args := ""
-					for fsc.Scan() {
-						args = fsc.Text()
+					for i := cy.init; i < cy.max; i++ {
+						args = cy.succ(cy)
 
-						cmd := callPart + ":" + args
+						cmd := (callPart + ":" + args)
 						if !suppressSrcLoopsOutput {
 							fmt.Println(cmd)
 						}
 						parseAndCall(cmd, 0)
 					}
 
-					return true //we saw one and executed it
+				} else {
+					file, err := os.Open(sourceName)
+					if err != nil {
+						fmt.Println(err)
+						return true
+					}
+					defer file.Close()
+
+					fsc := bufio.NewScanner(file)
+
+					fnName := strings.TrimPrefix(callPart, "!")
+
+					_, inDeffn := definedFunctions[fnName]
+
+					if inDeffn {
+						fmt.Println("A sourceloop on a user defined fn within a user defined fn doesn't work. Only on builtIns. Sorry. I have to squeeze my tiny 115 iq at the run routine and figure out what to do with the call stack.")
+
+						return true // will get run to ignor it
+					} else {
+						args := ""
+						for fsc.Scan() {
+
+							args = fsc.Text()
+
+							cmd := (callPart + ":" + args)
+							if !suppressSrcLoopsOutput {
+								fmt.Println(cmd)
+							}
+							parseAndCall(cmd, 0)
+						}
+
+						return true //we saw one and executed it
+					}
+
 				}
+
 			} else {
 				return false
 			}
@@ -891,25 +971,38 @@ startLoop:
 	}
 }
 
-func parseAndCall(content string, useless int64) bool {
-	//TODO: remove whitespace from begining of content
+/* see doSourceLoop(content) */
+func doSourceLoopParseAndCall(content string) bool {
+	got := strings.Replace(content, ":", "[seperator]", 1) //needs to be unique
 
-	if re["validCall"].MatchString(content) {
-		if strings.Count(content, "\"")%2 == 1 {
-			fmt.Println("Odd number of quotes found.")
-			return false
-		}
+	sep := strings.Split(got, "[seperator]")
 
-		got := strings.Replace(content, ":", "[seperator]", 1) //needs to be unique
+	if len(sep) >= 2 {
+		callPart, argPart := sep[0], sep[1]
 
-		sep := strings.Split(got, "[seperator]")
+		if re["sourceLoop"].MatchString(argPart) {
+			path := strings.TrimPrefix(argPart, "(src ")
+			path = strings.Trim(path, ")")
 
-		if len(sep) >= 2 {
-			callPart, argPart := sep[0], sep[1]
+			cy, incy := cycles[path]
+			if incy {
+				/*
+				* if is cycle call successor function and
+				* then call fun with that argument.
+				* convert to string
+				 */
+				args := ""
+				for i := cy.init; i < cy.max; i++ {
+					args = cy.succ(cy)
 
-			if re["sourceLoop"].MatchString(argPart) {
-				path := strings.TrimPrefix(argPart, "(src ")
-				path = strings.Trim(path, ")")
+					cmd := (callPart + ":" + args)
+					if !suppressSrcLoopsOutput {
+						fmt.Println(cmd)
+					}
+					parseAndCall(cmd, 0)
+				}
+
+			} else {
 
 				file, _ := os.Open(path)
 				defer file.Close()
@@ -926,10 +1019,34 @@ func parseAndCall(content string, useless int64) bool {
 					}
 					parseAndCall(cmd, 0)
 				}
-
 				return true
 			}
+		}
+	}
 
+	return false
+}
+
+func parseAndCall(content string, useless int64) bool {
+	//TODO: remove whitespace from begining of content
+
+	if re["validCall"].MatchString(content) {
+		if strings.Count(content, "\"")%2 == 1 {
+			fmt.Println("Odd number of quotes found.")
+			return false
+		}
+
+		got := strings.Replace(content, ":", "[seperator]", 1) //needs to be unique
+
+		sep := strings.Split(got, "[seperator]")
+
+		if len(sep) >= 2 {
+			callPart, argPart := sep[0], sep[1]
+
+			didSrcLoop := doSourceLoopParseAndCall(content)
+			if didSrcLoop {
+				return true
+			}
 			//fmt.Println(callPart, argPart)
 			//parse arguments as they are csv encoded
 
@@ -1688,6 +1805,7 @@ func nuke(args []string) {
 	csvTbl = map[string]*csvEntity{}
 	shortTbls = map[string]*hashTbl{}
 	listTbl = map[string]*List{}
+	cycles = map[string](*CycleCounter){}
 	suppressSrcLoopsOutput = false
 
 	runtime.GC()
@@ -3370,6 +3488,87 @@ func nukeWt(args []string) {
 	runtime.GC()
 }
 
+func showEdges(args []string) {
+	var name string
+	if len(args) < 1 {
+		fmt.Print("Vertex name = ")
+		sc.Scan()
+		name = sc.Text()
+	} else {
+		name = args[0]
+	}
+
+	vert, hasThatVert := worldGraph.vertexs[name]
+
+	if !hasThatVert {
+		fmt.Println("No such vertex with name: " + name)
+		return
+	}
+
+	for _, edge := range vert.adj {
+		fmt.Println(edge.dest.Name, edge.cost)
+	}
+}
+
+func newCycle(args []string) {
+	var name, max, initial, ty string
+
+	if len(args) < 4 {
+		fmt.Print("name = ")
+		sc.Scan()
+		name = sc.Text()
+		fmt.Print("initial value = ")
+		sc.Scan()
+		initial = sc.Text()
+		fmt.Print("max value = ")
+		sc.Scan()
+		max = sc.Text()
+		fmt.Print("type (MONTH,WEEKDAY,INT)= ")
+		sc.Scan()
+		ty = sc.Text()
+	} else {
+		name, initial, max, ty = args[0], args[1], args[2], args[3]
+	}
+
+	var working CycleCounter
+
+	init_, err1 := strconv.ParseInt(initial, 10, 64)
+	m, err2 := strconv.ParseInt(max, 10, 64)
+	working.init = init_
+	working.current = 0
+	if m > MAX_WEEKDAY && ty == "WEEKDAY" {
+		working.max = MAX_WEEKDAY
+	} else if m > MAX_MONTH && ty == "MONTH" {
+		working.max = MAX_MONTH
+	} else {
+		working.max = m
+	}
+
+	if err1 != nil {
+		fmt.Println(err1)
+		return
+	}
+
+	if err2 != nil {
+		fmt.Println(err2)
+		return
+	}
+
+	switch ty {
+	case "MONTH":
+		working.succ = MonthSucc
+	case "WEEKDAY":
+		working.succ = weekDaySucc
+	case "INT":
+		working.succ = intSucc
+	default:
+		fmt.Println("unrecognized cycle type")
+		return
+	}
+
+	cycles[name] = &working
+}
+
 //////////////////////////
 // http web app functions
 
@@ -3926,11 +4125,14 @@ func main() {
 	builtIns["findAllExactCSVToIndexList"] = findAllExactToIndexList
 	builtIns["headerColNumCSV"] = searchHeaderColNum
 	builtIns["lenList"] = lenList
-
-	// builtIns["newCSV"] = newCSV
 	builtIns["yogaAux"] = yogaAux
 	builtIns["nukeWorldGraph"] = nukeWorldGraph
 	builtIns["nukeWt"] = nukeWt
+
+	// builtIns["newCSV"] = newCSV
+	builtIns["showEdges"] = showEdges
+	builtIns["newCycle"] = newCycle
+
 	/* doesn't do anyting systematic or scary so you can
 	* change it without worry just
 	* some place to put all your most used stuff. Like
