@@ -332,7 +332,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.79.8"
+	VERSION = "v0.79.9"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -396,7 +396,7 @@ var suppressSrcLoopsOutput = false
 type CycleCounter struct {
 	succ    func(*CycleCounter) string
 	current int64
-	init    int64
+	initial    int64
 	max     int64
 }
 
@@ -422,7 +422,7 @@ func MonthSucc(cur *CycleCounter) string {
 		"November",
 		"December",
 	}
-	got := ((cur.init + cur.current) % cur.max)
+	got := ((cur.initial + cur.current) % cur.max)
 	cur.current++
 	return months[got%cur.max]
 }
@@ -437,13 +437,13 @@ func weekDaySucc(cur *CycleCounter) string {
 		"Friday",
 		"Saturday",
 	}
-	got := ((cur.init + cur.current) % cur.max)
+	got := ((cur.initial + cur.current) % cur.max)
 	cur.current++
 	return months[got%cur.max]
 }
 
 func intSucc(cur *CycleCounter) string {
-	got := ((cur.init + cur.current) % cur.max)
+	got := ((cur.initial + cur.current) % cur.max)
 	cur.current++
 	has := strconv.FormatInt(got, 10)
 	return has
@@ -755,12 +755,13 @@ func doSourceLoop(content string) bool {
 
 		if len(sep) >= 2 {
 			callPart, argPart := sep[0], sep[1]
-
+			
 			if re["sourceLoop"].MatchString(argPart) {
 				sourceName := strings.TrimPrefix(argPart, "(src ")
 				sourceName = strings.Trim(sourceName, ")")
 
 				cy, incy := cycles[sourceName]
+
 				if incy {
 					/*
 					* if is cycle call successor function and
@@ -768,7 +769,7 @@ func doSourceLoop(content string) bool {
 					* convert to string
 					 */
 					args := ""
-					for i := cy.init; i < cy.max; i++ {
+					for i := cy.initial; (i+1) < cy.max; i++ {
 						args = cy.succ(cy)
 
 						cmd := (callPart + ":" + args)
@@ -979,7 +980,7 @@ func doSourceLoopParseAndCall(content string) bool {
 
 	if len(sep) >= 2 {
 		callPart, argPart := sep[0], sep[1]
-
+		
 		if re["sourceLoop"].MatchString(argPart) {
 			path := strings.TrimPrefix(argPart, "(src ")
 			path = strings.Trim(path, ")")
@@ -992,7 +993,7 @@ func doSourceLoopParseAndCall(content string) bool {
 				* convert to string
 				 */
 				args := ""
-				for i := cy.init; i < cy.max; i++ {
+				for i := cy.initial; i < cy.max; i++ {
 					args = cy.succ(cy)
 
 					cmd := (callPart + ":" + args)
@@ -2316,6 +2317,7 @@ func bins(args []string) {
 	var csvName, val string
 	var colTmp string
 	if len(args) < 3 {
+		fmt.Println("csv column must be sorted by sortByColCSV in order for this routine to work.")
 		fmt.Print("csv table name = ")
 		sc.Scan()
 		csvName = sc.Text()
@@ -3534,7 +3536,7 @@ func newCycle(args []string) {
 
 	init_, err1 := strconv.ParseInt(initial, 10, 64)
 	m, err2 := strconv.ParseInt(max, 10, 64)
-	working.init = init_
+	working.initial = init_
 	working.current = 0
 	if m > MAX_WEEKDAY && ty == "WEEKDAY" {
 		working.max = MAX_WEEKDAY
@@ -3568,6 +3570,26 @@ func newCycle(args []string) {
 
 	cycles[name] = &working
 }
+
+func restartCycle(args []string){
+	var name string
+	if len(args) < 1 {
+		fmt.Print("name of cycle = ")
+		sc.Scan()
+		name=sc.Text()
+	} else {
+		name = args[0]
+	}
+
+	got, incy := cycles[name]
+
+	if !incy {
+		fmt.Println("name error")
+		return
+	}
+	got.current = got.initial
+}
+
 
 //////////////////////////
 // http web app functions
@@ -4132,6 +4154,7 @@ func main() {
 	// builtIns["newCSV"] = newCSV
 	builtIns["showEdges"] = showEdges
 	builtIns["newCycle"] = newCycle
+	builtIns["restartCycle"] = restartCycle
 
 	/* doesn't do anyting systematic or scary so you can
 	* change it without worry just
