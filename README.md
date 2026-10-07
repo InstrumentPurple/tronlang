@@ -184,3 +184,6 @@ sf.write("!stdout:cool\n")
 sf.flush()
 sf.write("!stdout:yellow\n")
 ```
+
+Emit was the equivalent of returning in tronlang before it had a callstack. It is therefor everywhere in the language so I should finally explain it. Functions are the objects that emit. Emits have values that are "emitted" from the function. You can emit within your own functions be using the emit built-in. Many built-ins have emit. You can connect a function to a variable with the connect built-in and it will update all connections from this function that you previously connected to with a value that has been emitted. The variables will "trail" the functions (If you call the function again the variable will automatically update.)
+
