@@ -3,7 +3,7 @@ Tronlang script interpreter written in Golang and C. The language that does not 
 
 CURRENTLY EXPERIMENTAL
 
-initial created to facilitate access to datastructures. Includes a general tree call the world tree because it's gobal. Hash tables are supported through short tables (which have limited capacity.). A global graph is implemented as a digraph and can find shortest paths with the Belman-ford algorithm
+initial created to facilitate access to datastructures. Includes a general tree call the world tree because it's global. Hash tables are supported through short tables (which have limited capacity.). A global graph is implemented as a digraph and can find shortest paths with the Belman-ford algorithm
 
 May in fact leak memory somewhere. Have fun building up memory. tron.exe should be FAT
 
