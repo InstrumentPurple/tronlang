@@ -332,7 +332,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.79.9"
+	VERSION = "v0.79.91 (Better coffee than javascript)"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -1195,8 +1195,11 @@ func emit(args []string) {
 	//todo: add rootBeers
 	for _, strId := range observerTbl[fn] {
 		_, ins := strTbl[strId]
-		if !ins {
-			fmt.Println("error cannot create string by emitting")
+		L, inL := listTbl[strId]
+		if !ins && !inL {
+			fmt.Println("error cannot create string or list by emitting")
+		} else if (inL) {
+			L.Insert(&value)
 		} else {
 			strTbl[strId] = value
 		}
@@ -1255,7 +1258,7 @@ func connect(args []string) {
 		sc.Scan()
 		funcId = sc.Text()
 
-		fmt.Print("string name = ")
+		fmt.Print("string or list name = ")
 		sc.Scan()
 		strId = sc.Text()
 	} else {
@@ -3519,10 +3522,10 @@ func newCycle(args []string) {
 		fmt.Print("name = ")
 		sc.Scan()
 		name = sc.Text()
-		fmt.Print("initial value = ")
+		fmt.Print("initial value (integer) = ")
 		sc.Scan()
 		initial = sc.Text()
-		fmt.Print("max value = ")
+		fmt.Print("max value (integer) = ")
 		sc.Scan()
 		max = sc.Text()
 		fmt.Print("type (MONTH,WEEKDAY,INT)= ")
@@ -3589,6 +3592,8 @@ func restartCycle(args []string){
 	}
 	got.current = got.initial
 }
+
+
 
 
 //////////////////////////
@@ -3933,7 +3938,7 @@ func dialog(rw http.ResponseWriter, req *http.Request) {
 		},
 
 		"find_stable": {
-			Msg: "(In a thick smoke's voice) Welcome to the barnesley stables where we getcha going. My name is Werv and I'll be your driver this evening. So where are you headed?",
+			Msg: "(In a thick smoker's voice) Welcome to the barnesley stables where we getcha going. My name is Werv and I'll be your driver this evening. So where are you headed?",
 			Options: []Option{
 				{Opt: "We have fare for two to Callenber. We're in no rush.", Next: "take_ride_with_werv"},
 			},
