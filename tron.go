@@ -332,7 +332,7 @@ func (g *Graph) saveEdges(fpath string) {
 }
 
 const (
-	VERSION = "v0.79.91 (Better coffee than javascript)"
+	VERSION = "v0.79.92"
 )
 
 var sc *bufio.Scanner = bufio.NewScanner(os.Stdin)
@@ -1086,7 +1086,7 @@ func insertWt(args []string) {
 	var path, line string
 
 	if len(args) < 2 {
-		fmt.Print("path (unix-stye) = ")
+		fmt.Print("path (unix-style) = ")
 		sc.Scan()
 		path = sc.Text()
 		fmt.Print("data = ")
@@ -3594,7 +3594,66 @@ func restartCycle(args []string){
 }
 
 
+func getMaxCycle(args []string){
+	var name string
+	if len(args) < 1 {
+		fmt.Print("cycle name = ")
+		sc.Scan()
+		name = sc.Text()
+	} else {
+		name = args[0]
+	}
 
+	cy, incy := cycles[name]
+	if !incy{
+		fmt.Println("cycle does not exist")
+	} else{
+		fmt.Println(cy.max)
+		got := strconv.FormatInt(cy.max, 10)
+		emit([]string{"getMaxCycle",got})
+	}
+}
+
+func getInitCycle(args []string){
+	var name string
+	if len(args) < 1 {
+		fmt.Print("cycle name = ")
+		sc.Scan()
+		name = sc.Text()
+	} else {
+		name = args[0]
+	}
+
+	cy, incy := cycles[name]
+	if !incy{
+		fmt.Println("cycle does not exist")
+	} else{
+		fmt.Println(cy.initial)
+		got := strconv.FormatInt(cy.initial, 10)
+		emit([]string{"getInitCycle",got})
+	}
+}
+
+func peekCycle(args []string){
+	var name string
+	if len(args) < 1 {
+		fmt.Print("cycle name = ")
+		sc.Scan()
+		name = sc.Text()
+	} else {
+		name = args[0]
+	}
+
+	cy, incy := cycles[name]
+	if !incy{
+		fmt.Println("cycle does not exist")
+	} else{
+		together := cy.initial + cy.current
+		fmt.Println(together)
+		got := strconv.FormatInt(together, 10)
+		emit([]string{"peekCycle",got})
+	}
+}
 
 //////////////////////////
 // http web app functions
@@ -4160,6 +4219,9 @@ func main() {
 	builtIns["showEdges"] = showEdges
 	builtIns["newCycle"] = newCycle
 	builtIns["restartCycle"] = restartCycle
+	builtIns["getMaxCycle"] = getMaxCycle
+	builtIns["getInitCycle"] = getInitCycle
+	builtIns["peekCycle"] = peekCycle
 
 	/* doesn't do anyting systematic or scary so you can
 	* change it without worry just
